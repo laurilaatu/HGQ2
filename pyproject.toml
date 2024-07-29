@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools_scm>=8"]
+
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qkeras_next"
+version = "0.0.1-dev"
+authors = [{ name = "Chang Sun", email = "chsun@cern.ch" }]
+description = "QKeras Next"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: OS Independent",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Development Status :: 1 - Planning",
+]
+
+[project.urls]
+repository = "https://github.com/calad0i/qkeras-next"
+
+[tool.setuptools_scm]
+write_to = "qkeras_next/_version.py"
+
+[project.optional-dependencies]
+docs = ["sphinx", "sphinx-rtd-theme", "myst-parser", "qkeras", "pyparsing"]
+
+dependencies = ['keras>=3']
+
+test = [
+  # "git+https://github.com/calad0i/hls4ml@HGQ-integration",
+  "jax",
+  "cppyy",
+  "pytest",
+  "pytest-xdist",
+  "pytest-env",
+  "pytest-cov",
+  "pytest-sugar",
+  "pyparsing",
+]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+  "ignore:WARNING\\W Pytorch converter is not enabled!:UserWarning",
+  "ignore:.\\[93mcover_factor<1.0 will likely to result in overflows:UserWarning",
+  "ignore:You are saving your model as an HDF5 file:UserWarning",
+  "ignore:Even though the `tf.config.experimental_run_functions_eagerly`:UserWarning",
+  "ignore:pkg_resources is deprecated as an API:DeprecationWarning",
+  "ignore:distutils Version classes are deprecated:DeprecationWarning",
+  "ignore:module 'sre_constants' is deprecated:DeprecationWarning",
+  "ignore:Deprecated call to `pkg_resources.declare_namespace:DeprecationWarning",
+]
+
+env = [
+  "KERAS_BACKEND=jax",
+  "JAX_PLATFORMS=cpu",
+  "CUDA_VISIBLE_DEVICES=-1",
+  "CLING_ENABLE_CUDA=0",
+]
+
+addopts = "--cov=qkeras_next --cov-report=xml --cov-report=html"
+
+[tool.coverage.run]
+omit = ["*/_version.py"]
