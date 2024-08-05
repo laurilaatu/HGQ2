@@ -1,3 +1,4 @@
+import typing
 from collections.abc import Sequence
 
 import keras
@@ -21,7 +22,26 @@ def round_conv(x):
     return qx, grad
 
 
-class QuantizerBase(Layer):
+class BitwidthMapperBase:
+    """Abstract base class for mapping bitwidth tensor to input tensors for HG quantizers."""
+
+    def bw_to_x(self, bw, x_shape):
+        raise NotImplementedError
+
+    def x_to_bw(self, x):
+        raise NotImplementedError
+
+    def inference_weight_shape(self, input_shape) -> tuple[int, ...]:
+        raise NotImplementedError
+
+
+def check_axis(axis: Sequence[int], ndim: int):
+    axis = [a if a >= 0 else a + ndim for a in axis]
+    assert all(0 <= a < ndim for a in axis), f"Invalid axis {axis} for shape {ndim}."
+    return axis
+
+
+class TrainableQuantizerBase(Layer):
     """Abstract base class for all quantizers."""
 
     def __init__(self, **kwargs):
@@ -55,25 +75,6 @@ class QuantizerBase(Layer):
         return input_shape
 
 
-class BitwidthMapperBase:
-    """Abstract base class for mapping bitwidth tensor to input tensors for HG quantizers."""
-
-    def bw_to_x(self, bw, shape):
-        raise NotImplementedError
-
-    def x_to_bw(self, x):
-        raise NotImplementedError
-
-    def inference_weight_shape(self, input_shape) -> tuple[int, ...]:
-        raise NotImplementedError
-
-
-def check_axis(axis: Sequence[int], ndim: int):
-    axis = [a if a >= 0 else a + ndim for a in axis]
-    assert all(0 <= a < ndim for a in axis), f"Invalid axis {axis} for shape {ndim}."
-    return axis
-
-
 class DefaultBitwidthMapper(BitwidthMapperBase):
     """Default bitwidth mapper for HG quantizers."""
 
@@ -100,86 +101,32 @@ class DefaultBitwidthMapper(BitwidthMapperBase):
 
         return tuple(weight_shape)
 
-    def bw_to_x(self, bw, shape):
-        return ops.broadcast_to(bw, shape)
+    def bw_to_x(self, bw, x_shape):
+        return ops.broadcast_to(bw, x_shape)
 
     def x_to_bw(self, x):
         return ops.max(ops.abs(x), axis=self.homogeneous_axis, keepdims=True)
 
 
-DefaultBitwidthMapper(homogeneous_axis=(1,))
-
-
-def minimal_i_given_xb(x, b):
-    eps = 2**-23
+def minimal_i_given_xb(x, b, symmetric=False):
+    eps = 3e-8  # 1/2 fp16 minimal positive
+    if symmetric:
+        return ops.ceil(ops.log2(ops.abs(x) / (2**-b) + eps))
     i_pos = ops.ceil(ops.log2(x / (1 - 2**-b) + eps))
-    i_neg = ops.ceil(ops.log2(-x))
+    i_neg = ops.ceil(ops.log2(-x - eps))
     return ops.where(x >= 0, i_pos, i_neg)
 
 
-def minimal_i_given_xf(x, f):
+def minimal_i_given_xf(x, f, symmetric=False):
+    eps = 3e-8  # 1/2 fp16 minimal positive
+    if symmetric:
+        return ops.ceil(ops.log2(ops.abs(x) + 2**-f))
     i_pos = ops.ceil(ops.log2(x + 2**-f))
-    i_neg = ops.ceil(ops.log2(-x))
+    i_neg = ops.ceil(ops.log2(-x - eps))
     return ops.where(x >= 0, i_pos, i_neg)
 
 
-class FixedPointQuantizerKBIBase(QuantizerBase):
-    """Abstract base class for all fixed-point quantizers."""
-
-    def __init__(self, k0: numbers | bool, b0: numbers, I0: numbers, i_decay_speed: numbers = np.inf, **kwargs):
-        k0 = int(k0)
-        assert k0 == 0 or k0 == 1, f"Invalid k0 value {k0}: must be 0 or 1."
-        assert b0 >= 0, f"Invalid b0 value {b0}: must be non-negative."
-        self._k0 = float(k0)
-        self._b0 = float(b0)
-        self._I0 = float(I0)
-        self._i_decay_speed0 = float(i_decay_speed)
-        super().__init__(**kwargs)
-
-    def build(self, input_shape):
-        super().build(input_shape)
-        bw_shape = self.bw_mapper.inference_weight_shape(input_shape)
-
-        init_k = keras.initializers.Constant(self._k0)
-        init_b = keras.initializers.Constant(self._b0)
-        init_i = keras.initializers.Constant(self._I0)
-        self._k = self.add_weight(name="k", shape=bw_shape, initializer=init_k, trainable=False)
-        self._b = self.add_weight(name="b", shape=bw_shape, initializer=init_b, trainable=True, constraint=keras.constraints.NonNeg())
-        self._I = self.add_weight(name="I", shape=bw_shape, initializer=init_i, trainable=True)
-
-    @property
-    def k(self):
-        return ops.cast(self._k, self.dtype)
-
-    @property
-    def B(self):
-        return round_conv(ops.cast(self._b, self.dtype))
-
-    @property
-    def I(self):
-        return round_conv(ops.cast(self._I, self.dtype))
-
-    @property
-    def i(self):
-        return self.I - self.k
-
-    @property
-    def f(self):
-        return self.B - self.I
-
-    @property
-    def b(self):
-        return self.B - self.k
-
-
-class FixedPointQuantizerKBI(FixedPointQuantizerKBIBase):
-    """Fixed-point quantizer with k, b, and I parameters."""
-
-    def __init__(self, round_mode: str, overflow_mode: str, k0: numbers | bool, b0: numbers, I0: numbers, i_decay_speed: numbers, **kwargs):
-        super().__init__(k0=k0, b0=b0, I0=I0, i_decay_speed=i_decay_speed, **kwargs)
-        self._round_mode = round_mode.upper()
-        self._overflow_mode = overflow_mode.upper()
-
+class FixedPointQuantizerBase(TrainableQuantizerBase):
     @property
     def round_mode(self):
         return self._round_mode
@@ -192,144 +139,170 @@ class FixedPointQuantizerKBI(FixedPointQuantizerKBIBase):
         super().build(input_shape)
         self.stateless_quantizer = get_fixed_quantizer(self.round_mode, self.overflow_mode)
         if self.overflow_mode == 'WRAP':
-            self._I.trainable = False
             init = keras.initializers.Constant(self._i_decay_speed0)
             self._i_decay_speed = self.add_weight(name="i_decay_speed", shape=(), initializer=init, trainable=False)
+        self._symmetric = self.overflow_mode.endswith('SYM')
+
+    @property
+    def symmetric(self):
+        return self._symmetric
 
     @property
     def i_decay_speed(self):
         return self._i_decay_speed
 
-    def call(self, inputs, training=None):
-        if training and self.overflow_mode == 'WRAP':
-            b = self.B
-            xr = self.bw_mapper.x_to_bw(inputs)
-            _new_I = minimal_i_given_xb(xr, b) + self.k  # type: ignore
-            new_I = ops.stop_gradient(ops.maximum((self._I - self.i_decay_speed), _new_I))
-            self._I.assign(new_I)
-
-        k = self.bw_mapper.bw_to_x(self.k, ops.shape(inputs))
-        i = self.bw_mapper.bw_to_x(self.i, ops.shape(inputs))
-        f = self.bw_mapper.bw_to_x(self.f, ops.shape(inputs))
-
-        return self.stateless_quantizer_call(inputs, k, i, f, training)
-
-    def __repr__(self) -> str:
-
-        cls_name = self.__class__.__name__
-        round_str = f"round_mode={self.round_mode}"
-        overflow_str = f"overflow_mode={self.overflow_mode}"
-        if not self.built:
-            return f"{cls_name}(name={self.name}, {round_str}, {overflow_str})"
-        k, b, I = self.k, self.B, self.I
-        kstd, bstd, Istd = np.std(k), np.std(b), np.std(I)  # type: ignore
-        kmean, bmean, Imean = np.mean(k), np.mean(b), np.mean(I)  # type: ignore
-        name_str = f"name={self.name}"
-        k_str = f"k={kmean:.2f}±{kstd:.2f}"
-        b_str = f"b={bmean:.2f}±{bstd:.2f}"
-        I_str = f"I={Imean:.2f}±{Istd:.2f}"
-
-        return f"{cls_name}({name_str}, {k_str}, {b_str}, {I_str}, {round_str}, {overflow_str})"
-
-
-class FixedPointQuantizerKIFBase(QuantizerBase):
-    """Abstract base class for all fixed-point quantizers."""
-
-    def __init__(self, k0: numbers | bool, i0: numbers, f0: numbers, i_decay_speed0: numbers = np.inf, **kwargs):
-        k0 = int(k0)
-        assert k0 == 0 or k0 == 1, f"Invalid k0 value {k0}: must be 0 or 1."
-        assert i0 + f0 >= 0, f"Invalid b0=i0+f0 value {i0 + f0}: must be non-negative."
-        self._k0 = float(k0)
-        self._i0 = float(i0)
-        self._f0 = float(f0)
-        self._i_decay_speed0 = float(i_decay_speed0)
-        super().__init__(**kwargs)
-
-    def build(self, input_shape):
-        super().build(input_shape)
-        bw_shape = self.bw_mapper.inference_weight_shape(input_shape)
-
-        init_k = keras.initializers.Constant(self._k0)
-        init_i = keras.initializers.Constant(self._i0)
-        init_f = keras.initializers.Constant(self._f0)
-
-        self._k = self.add_weight(name="k", shape=bw_shape, initializer=init_k, trainable=False)
-        self._i = self.add_weight(name="i", shape=bw_shape, initializer=init_i, trainable=True)
-        self._f = self.add_weight(name="f", shape=bw_shape, initializer=init_f, trainable=True)
+    @property
+    def kif(self):
+        raise NotImplementedError
 
     @property
     def k(self):
-        return ops.cast(self._k, self.dtype)
-
-    @property
-    def i(self):
-        _i = ops.cast(self._i, self.dtype)
-        _f = ops.cast(self._f, self.dtype)
-        return round_conv(ops.maximum(-_f, _i))  # type: ignore # i+f >= 0
-
-    @property
-    def f(self):
-        return round_conv(ops.cast(self._f, self.dtype))
+        raise NotImplementedError
 
     @property
     def b(self):
-        return self.i + self.f
+        raise NotImplementedError
 
     @property
-    def I(self):
-        return self.i + self.k
+    def i(self):
+        raise NotImplementedError
 
     @property
-    def i_decay_speed(self):
-        return ops.cast(self._i_decay_speed, self.dtype)
+    def f(self):
+        raise NotImplementedError
 
+    def __repr__(self) -> str:
+        if self.built:
+            k, i, f = self.k, self.i, self.f
+            kstd, istd, fstd = np.std(k), np.std(i), np.std(f)  # type: ignore
+            kmean, imean, fmean = np.mean(k), np.mean(i), np.mean(f)  # type: ignore
+            kstr = f"{kmean:.2f}±{kstd:.2f}"
+            istr = f"{imean:.2f}±{istd:.2f}"
+            fstr = f"{fmean:.2f}±{fstd:.2f}"
+            return f"{self.__class__.__name__}(k={kstr}, i={istr}, f={fstr}, {self.round_mode}, {self.overflow_mode})"
+        return f"{self.__class__.__name__}({self.round_mode}, {self.overflow_mode}, UNBUILT)"
 
-class FixedPointQuantizerKIF(FixedPointQuantizerKIFBase):
-    """Fixed-point quantizer with k, b, and I parameters."""
-
-    def __init__(self, round_mode: str, overflow_mode: str, k0: numbers | bool, i0: numbers, f0: numbers, i_decay_speed: numbers, **kwargs):
-        super().__init__(k0=k0, i0=i0, f0=f0, i_decay_speed0=i_decay_speed, **kwargs)
-        self._round_mode = round_mode.upper()
-        self._overflow_mode = overflow_mode.upper()
-
-    @property
-    def round_mode(self):
-        return self._round_mode
-
-    @property
-    def overflow_mode(self):
-        return self._overflow_mode
-
-    def build(self, input_shape):
-        super().build(input_shape)
-        self.stateless_quantizer = get_fixed_quantizer(self.round_mode, self.overflow_mode)
-        if self.overflow_mode == 'WRAP':
-            self._i.trainable = False
-            init = keras.initializers.Constant(self._i_decay_speed0)
-            self._i_decay_speed = self.add_weight(name="i_decay_speed", shape=(), initializer=init, trainable=False)
-
-    @property
-    def i_decay_speed(self):
-        return ops.cast(self._i_decay_speed, self.dtype)
+    def get_minimum_i(self, inputs):
+        raise NotImplementedError
 
     def call(self, inputs, training=None):
         if training and self.overflow_mode == 'WRAP':
-            f = self.f
-            xr = self.bw_mapper.x_to_bw(inputs)
-            new_i = (xr, f)
-            self._i.assign(ops.maximum((self._i._value - self.i_decay_speed), new_i))
+            _new_i = self.get_minimal_i(inputs)
+            new_i = ops.stop_gradient(ops.maximum((self._i - self.i_decay_speed), _new_i))
+            self._i.assign(new_i)
 
-        k = self.k
-        i = self.i
-        f = self.f
+        k, i, f = self.kif
         k = self.bw_mapper.bw_to_x(k, ops.shape(inputs))
         i = self.bw_mapper.bw_to_x(i, ops.shape(inputs))
         f = self.bw_mapper.bw_to_x(f, ops.shape(inputs))
 
         return self.stateless_quantizer_call(inputs, k, i, f, training)
 
-    def __repr__(self) -> str:
-        k, i, f = self.k, self.i, self.f
-        kstd, istd, fstd = np.std(k), np.std(i), np.std(f)  # type: ignore
-        kmean, imean, fmean = np.mean(k), np.mean(i), np.mean(f)  # type: ignore
-        return f"{self.__class__.__name__}(k={kmean:.2f}±{kstd:.2f}, i={imean:.2f}±{istd:.2f}, f={fmean:.2f}±{fstd:.2f}, {self.round_mode}, {self.overflow_mode})"
+
+class FixedPointQuantizerKBI(FixedPointQuantizerBase):
+    """Abstract base class for all fixed-point quantizers."""
+
+    def __init__(self, k0: numbers | bool, b0: numbers, i0: numbers, round_mode: str, overflow_mode: str, i_decay_speed: numbers = np.inf, **kwargs):
+        k0 = int(k0)
+        assert k0 == 0 or k0 == 1, f"Invalid k0 value {k0}: must be 0 or 1."
+        assert b0 >= 0, f"Invalid b0 value {b0}: must be non-negative."
+        self._k0 = float(k0)
+        self._b0 = float(b0)
+        self._i0 = float(i0)
+        self._i_decay_speed0 = float(i_decay_speed)
+        self._round_mode = round_mode.upper()
+        self._overflow_mode = overflow_mode.upper()
+        super().__init__(**kwargs)
+
+    def build(self, input_shape):
+        bw_shape = self.bw_mapper.inference_weight_shape(input_shape)
+
+        init_k = keras.initializers.Constant(self._k0)
+        init_b = keras.initializers.Constant(self._b0)
+        init_i = keras.initializers.Constant(self._i0)
+        self._k = self.add_weight(name="k", shape=bw_shape, initializer=init_k, trainable=False, dtype='uint8')
+        self._b = self.add_weight(name="b", shape=bw_shape, initializer=init_b, trainable=True, constraint=keras.constraints.NonNeg())
+        i_trainable = self.overflow_mode != 'WRAP'
+        self._i = self.add_weight(name="i", shape=bw_shape, initializer=init_i, trainable=i_trainable)
+        super().build(input_shape)
+
+    @property
+    def k(self):
+        return ops.cast(self._k, self.dtype)
+
+    @property
+    def b(self):
+        return round_conv(ops.cast(self._b, self.dtype))
+
+    @property
+    def i(self):
+        return round_conv(ops.cast(self._i, self.dtype))
+
+    @property
+    def f(self):
+        return self.b - self.i
+
+    @property
+    def kif(self):
+        k = self.k
+        b = self.b
+        i = self.i
+        return k, i, b - i  # type: ignore
+
+    def get_minimal_i(self, inputs):
+        xr = self.bw_mapper.x_to_bw(inputs)
+        return minimal_i_given_xb(xr, self.b, self.symmetric)
+
+
+class FixedPointQuantizerKIF(FixedPointQuantizerBase):
+    """Abstract base class for all fixed-point quantizers."""
+
+    def __init__(self, k0: numbers | bool, i0: numbers, f0: numbers, round_mode: str, overflow_mode: str, i_decay_speed: numbers = np.inf, **kwargs):
+        k0 = int(k0)
+        assert k0 == 0 or k0 == 1, f"Invalid k0 value {k0}: must be 0 or 1."
+        assert i0 + f0 >= 0, f"Invalid i0+f0 value {i0 + f0}: must be non-negative."
+        self._k0 = float(k0)
+        self._i0 = float(i0)
+        self._f0 = float(f0)
+        self._i_decay_speed0 = float(i_decay_speed)
+        self._round_mode = round_mode.upper()
+        self._overflow_mode = overflow_mode.upper()
+        super().__init__(**kwargs)
+
+    def build(self, input_shape):
+        bw_shape = self.bw_mapper.inference_weight_shape(input_shape)
+
+        init_k = keras.initializers.Constant(self._k0)
+        init_i = keras.initializers.Constant(self._i0)
+        init_f = keras.initializers.Constant(self._f0)
+
+        self._k = self.add_weight(name="k", shape=bw_shape, initializer=init_k, trainable=False, dtype='uint8')
+        i_trainable = self.overflow_mode != 'WRAP'
+        self._i = self.add_weight(name="i", shape=bw_shape, initializer=init_i, trainable=i_trainable)
+        self._f = self.add_weight(name="f", shape=bw_shape, initializer=init_f, trainable=True)
+
+        super().build(input_shape)
+
+    @property
+    def k(self):
+        return ops.cast(self._k, self.dtype)
+
+    @property
+    def b(self):
+        return self.i + self.f
+
+    @property
+    def i(self):
+        return round_conv(ops.cast(self._i, self.dtype))
+
+    @property
+    def f(self):
+        return round_conv(ops.cast(self._f, self.dtype))
+
+    @property
+    def kif(self):
+        return self.k, self.i, self.f
+
+    def get_minimal_i(self, inputs):
+        xr = self.bw_mapper.x_to_bw(inputs)
+        return minimal_i_given_xf(xr, self.f, self.symmetric)
