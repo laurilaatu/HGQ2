@@ -88,8 +88,8 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
     def __repr__(self) -> str:
         if self.built:
             k, i, f = self.k, self.i, self.f
-            kstd, istd, fstd = np.std(k), np.std(i), np.std(f)  # type: ignore
-            kmean, imean, fmean = np.mean(k), np.mean(i), np.mean(f)  # type: ignore
+            kstd, istd, fstd = float(ops.std(k)), float(ops.std(i)), float(ops.std(f))  # type: ignore
+            kmean, imean, fmean = float(ops.mean(k)), float(ops.mean(i)), float(ops.mean(f))  # type: ignore
             kstr = f"{kmean:.2f}±{kstd:.2f}"
             istr = f"{imean:.2f}±{istd:.2f}"
             fstr = f"{fmean:.2f}±{fstd:.2f}"
@@ -116,15 +116,16 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
 class FixedPointQuantizerKBI(FixedPointQuantizerBase):
     """Abstract base class for all fixed-point quantizers."""
 
-    def __init__(self,
-                 k0: numbers | bool | Initializer,
-                 b0: numbers | Initializer,
-                 i0: numbers | Initializer,
-                 round_mode: str,
-                 overflow_mode: str,
-                 i_decay_speed: numbers = np.inf,
-                 **kwargs
-                 ):
+    def __init__(
+        self,
+        k0: numbers | bool | Initializer,
+        b0: numbers | Initializer,
+        i0: numbers | Initializer,
+        round_mode: str,
+        overflow_mode: str,
+        i_decay_speed: numbers = np.inf,
+        **kwargs
+    ):
         if not isinstance(k0, Initializer) and not isinstance(b0, Initializer) and not isinstance(i0, Initializer):
             k0 = int(k0)
             assert k0 == 0 or k0 == 1, f"Invalid k0 value {k0}: must be 0 or 1."
@@ -177,7 +178,16 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
 class FixedPointQuantizerKIF(FixedPointQuantizerBase):
     """Abstract base class for all fixed-point quantizers."""
 
-    def __init__(self, k0: numbers | bool, i0: numbers, f0: numbers, round_mode: str, overflow_mode: str, i_decay_speed: numbers = np.inf, **kwargs):
+    def __init__(
+        self,
+        k0: numbers | bool,
+        i0: numbers,
+        f0: numbers,
+        round_mode: str,
+        overflow_mode: str,
+        i_decay_speed: numbers = np.inf,
+        **kwargs
+    ):
         if not isinstance(k0, Initializer) and not isinstance(i0, Initializer) and not isinstance(f0, Initializer):
             k0 = int(k0)
             assert k0 == 0 or k0 == 1, f"Invalid k0 value {k0}: must be 0 or 1."

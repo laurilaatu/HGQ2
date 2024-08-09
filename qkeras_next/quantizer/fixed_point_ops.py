@@ -17,7 +17,10 @@ T = TypeVar('T')
 def _clip(x, min_value, max_value):
     r = ops.clip(x, min_value, max_value)
 
-    def grad(dy):
+    def grad(*args, upstream=None):
+        if upstream is None:
+            (upstream,) = args
+        dy = upstream
         dx = ops.where(x == r, dy, 0.)
         dmax = ops.where(x > max_value, dy, 0.)
         dmin = ops.where(x < min_value, dy, 0.)
@@ -37,7 +40,10 @@ def rnd_mode(names: str | list[str] | tuple[str, ...]):
             xq = sxq / scale
             delta = xq - x
 
-            def grad(dy):
+            def grad(*args, upstream=None):
+                if upstream is None:
+                    (upstream,) = args
+                dy = upstream
                 dx = dy
                 df = - ops.log(2.) * delta * dy  # type: ignore
                 return dx, df
@@ -47,7 +53,10 @@ def rnd_mode(names: str | list[str] | tuple[str, ...]):
         def inner_ste_wrapper(x):
             r = func(x)
 
-            def grad(dy):
+            def grad(*args, upstream=None):
+                if upstream is None:
+                    (upstream,) = args
+                dy = upstream
                 return dy
             return ops.stop_gradient(r), grad
 
@@ -172,7 +181,10 @@ def register_stochastic_rounding():
         xq = sxq / scale
         delta = xq - x
 
-        def grad(dy):
+        def grad(*args, upstream=None):
+            if upstream is None:
+                (upstream,) = args
+            dy = upstream
             dx = dy
             df = - ops.log(2.) * delta * dy  # type: ignore
             return dx, df, None

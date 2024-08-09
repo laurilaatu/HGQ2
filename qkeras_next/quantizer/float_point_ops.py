@@ -20,7 +20,10 @@ def float_quantize(x, m, e, e0=0):
     clip_sig = ops.clip(qsig, -_sig_high, _sig_high)  # type: ignore
     qx = clip_sig * scale
 
-    def grad(dy):
+    def grad(*args, upstream=None):
+        if upstream is None:
+            (upstream,) = args
+        dy = upstream
         mask_e = e_req != e_act
         mask_m = e_req <= e_high
         dm = ops.where(mask_m, scale * (sig - qsig) * dy * ops.log(2.), 0.)
