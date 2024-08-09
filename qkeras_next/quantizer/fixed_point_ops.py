@@ -4,9 +4,10 @@ from typing import Any, Optional, TypeVar
 
 import keras
 from keras import ops
+from keras.api.random import SeedGenerator
 
 round_mode_registry: dict[str, Callable[[Any, bool | None], Any]] = {}
-round_mode_registry_scaled: dict[str, Callable[[Any, Any, bool | None], Any]] = {}
+round_mode_registry_scaled: dict[str, Callable[[Any, Any, bool | None, SeedGenerator | None], Any]] = {}
 saturation_mode_registry: dict[str, Callable[[Any, Any, Any, Any, bool | None], Any]] = {}
 
 T = TypeVar('T')
@@ -29,26 +30,32 @@ def rnd_mode(names: str | list[str] | tuple[str, ...]):
 
     def inner(func):
         @keras.ops.custom_gradient
-        def wrapper(x, f, training=None):
+        def inner_wrapper(x, f):
             scale = 2.**f
             sx = x * scale
-            sxq = func(sx, training)
+            sxq = func(sx)
             xq = sxq / scale
             delta = xq - x
 
             def grad(dy):
                 dx = dy
                 df = - ops.log(2.) * delta * dy  # type: ignore
-                return dx, df, None
-            return xq, grad
+                return dx, df
+            return ops.stop_gradient(xq), grad
 
         @keras.ops.custom_gradient
-        def ste_wrapper(x, training=None):
-            r = func(x, training)
+        def inner_ste_wrapper(x):
+            r = func(x)
 
             def grad(dy):
-                return dy, None
-            return r, grad
+                return dy
+            return ops.stop_gradient(r), grad
+
+        def wrapper(x, f, training=None, seed_gen=None):  # type: ignore
+            return inner_wrapper(x, f)
+
+        def ste_wrapper(x, training=None):  # type: ignore
+            return inner_ste_wrapper(x)
 
         for name in names:
             assert name not in round_mode_registry_scaled, f"Rounding mode '{name}' already exists."
@@ -65,44 +72,21 @@ def rnd_mode(names: str | list[str] | tuple[str, ...]):
 
 
 @rnd_mode('TRN')
-def floor(x, training=None):
+def floor(x):
     return ops.floor(x)
 
 
 @rnd_mode('RND')
-def round(x, training=None):
+def round(x):
     return ops.floor(x + 0.5)
 
 
-@rnd_mode('S_RND')
-def stochastic(x, training=None):
-    if training:
-        return ops.floor(x + keras.random.uniform(x.shape))
-    else:
-        return ops.floor(x + 0.5)
-
-
 @rnd_mode('RND_CONV')
-def round_conv(x, training=None):
+def round_conv(x):
     return ops.round(x)
 
 
-@rnd_mode('S_RND_CONV')
-def stochastic_conv(x, training=None):
-    if training:
-        return ops.floor(x + keras.random.uniform(x.shape))
-    else:
-        return ops.round(x)
-
-
-@singledispatch
-def sat_mode(func: Callable):
-    saturation_mode_registry[func.__name__.upper()] = func
-    return func
-
-
-@sat_mode.register
-def _(name: str | list | tuple):
+def sat_mode(name: str | list | tuple):
     names = (name,) if isinstance(name, str) else name
 
     def inner(func):
@@ -114,7 +98,7 @@ def _(name: str | list | tuple):
     return inner
 
 
-@sat_mode
+@sat_mode('WRAP')
 def wrap(x, k, i, f, training=None):
     if training:
         return x
@@ -160,7 +144,7 @@ def get_fixed_quantizer(round_mode: str = 'TRN', overflow_mode: str = 'WRAP') ->
     if sat_fn is None:
         raise ValueError(f"Unknown saturation mode: {overflow_mode}")  # pragma: no cover
 
-    def quantizer(x, k, i, f, training: bool | None = None):
+    def quantizer(x, k, i, f, training: bool | None = None, seed_gen: keras.random.SeedGenerator | None = None) -> T:
         """Stateless fixed-point quantizer.
         Args:
             x: input tensor
@@ -169,10 +153,50 @@ def get_fixed_quantizer(round_mode: str = 'TRN', overflow_mode: str = 'WRAP') ->
             f: number of fractional bits
             training: training mode
         """
-        qi = round(i, True)
-        qf = round(f, True)
+        qi = round(i)
+        qf = round(f)
 
-        xq = round_fn_scaled(x, qf, training)
+        xq = round_fn_scaled(x, qf, training, seed_gen)
         xq = sat_fn(xq, k, qi, qf, training)
         return xq
     return quantizer
+
+
+# ======================= STOCHASTIC ROUNDING =======================
+def register_stochastic_rounding():
+    @keras.ops.custom_gradient
+    def stochastic_scaled(x, f, noise):
+        scale = 2.**f
+        sx = x * scale
+        sxq = ops.floor(sx + noise)
+        xq = sxq / scale
+        delta = xq - x
+
+        def grad(dy):
+            dx = dy
+            df = - ops.log(2.) * delta * dy  # type: ignore
+            return dx, df, None
+        return ops.stop_gradient(xq), grad
+
+    rnd_scaled = round_mode_registry_scaled['RND']
+    rnd_conv_scaled = round_mode_registry_scaled['RND_CONV']
+
+    def outer_rnd(x, f, training=None, seed_gen=None):
+        if training:
+            noise = keras.random.uniform(ops.shape(x), seed=seed_gen)
+            return stochastic_scaled(x, f, noise)
+        else:
+            return rnd_scaled(x, f, training, seed_gen)
+
+    def outer_rnd_conv(x, f, training=None, seed_gen=None):
+        if training:
+            noise = keras.random.uniform(ops.shape(x), seed=seed_gen)
+            return stochastic_scaled(x, f, noise)
+        else:
+            return rnd_conv_scaled(x, f, training, seed_gen)
+
+    round_mode_registry_scaled['S_RND'] = outer_rnd
+    round_mode_registry_scaled['S_RND_CONV'] = outer_rnd_conv
+
+
+register_stochastic_rounding()
