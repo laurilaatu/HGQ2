@@ -136,7 +136,7 @@ def test_float_quantizer_grad(xxx_mee0):
     assert jnp.all(dx == 0), f'Subnormal Number X grad Error'
     assert jnp.all(dm[mask] < 0), f'Subnormal Number M grad Error: max={jnp.max(dm[mask])}>0'
     assert jnp.all(de[mask] < 0), f'Subnormal Number E grad Error: max={jnp.max(de[mask])}>0'
-    assert jnp.all(de0[mask] < 0), f'Subnormal Number E0 grad Error: max={jnp.max(de0[mask])}>0'
+    assert jnp.all(de0[mask] > 0), f'Subnormal Number E0 grad Error: max={jnp.max(de0[mask])}>0'
 
     dx, dm, de, de0 = jax.grad(abs_quantization_err, range(4))(x_overflow, M, E, E0)
     assert jnp.all(dx == 0), f'Overflow Number X grad Error'
