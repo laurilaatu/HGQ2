@@ -1,8 +1,12 @@
 import keras
 import numpy as np
 from keras import ops
+from keras.api.constraints import Constraint
 from keras.api.initializers import Constant, Initializer
+from keras.api.regularizers import Regularizer
+from keras.src import backend
 
+from ..utils.constraints import MinMax
 from .base import TrainableQuantizerBase, numbers
 from .fixed_point_ops import get_fixed_quantizer, round_conv
 
@@ -86,15 +90,15 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
         return self.b
 
     def __repr__(self) -> str:
-        if self.built:
-            k, i, f = self.k, self.i, self.f
-            kstd, istd, fstd = float(ops.std(k)), float(ops.std(i)), float(ops.std(f))  # type: ignore
-            kmean, imean, fmean = float(ops.mean(k)), float(ops.mean(i)), float(ops.mean(f))  # type: ignore
-            kstr = f"{kmean:.2f}±{kstd:.2f}"
-            istr = f"{imean:.2f}±{istd:.2f}"
-            fstr = f"{fmean:.2f}±{fstd:.2f}"
-            return f"{self.__class__.__name__}(k={kstr}, i={istr}, f={fstr}, {self.round_mode}, {self.overflow_mode})"
-        return f"{self.__class__.__name__}({self.round_mode}, {self.overflow_mode}, UNBUILT)"
+        if not self.built:
+            return f"{self.__class__.__name__}({self.round_mode}, {self.overflow_mode}, name={self.name}, built=False)"
+        k, i, f = self.k, self.i, self.f
+        kstd, istd, fstd = float(ops.std(k)), float(ops.std(i)), float(ops.std(f))  # type: ignore
+        kmean, imean, fmean = float(ops.mean(k)), float(ops.mean(i)), float(ops.mean(f))  # type: ignore
+        kstr = f"{kmean:.2f}±{kstd:.2f}"
+        istr = f"{imean:.2f}±{istd:.2f}"
+        fstr = f"{fmean:.2f}±{fstd:.2f}"
+        return f"{self.__class__.__name__}(k={kstr}, i={istr}, f={fstr}, {self.round_mode}, {self.overflow_mode}, name={self.name})"
 
     def get_minimum_i(self, inputs):
         raise NotImplementedError
@@ -123,6 +127,10 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
         i0: numbers | Initializer,
         round_mode: str,
         overflow_mode: str,
+        bc: Constraint | None = MinMax(0, 12),
+        ic: Constraint | None = None,
+        br: Regularizer | None = None,
+        ir: Regularizer | None = None,
         i_decay_speed: numbers = np.inf,
         **kwargs
     ):
@@ -136,28 +144,54 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
         self._i_decay_speed0 = i_decay_speed if isinstance(i_decay_speed, Initializer) else Constant(float(i_decay_speed))
         self._round_mode = round_mode.upper()
         self._overflow_mode = overflow_mode.upper()
+        self.b_constraint = bc
+        self.i_constraint = ic
+        self.b_regularizer = br
+        self.i_regularizer = ir
+
+        self.validate_config()
         super().__init__(**kwargs)
 
     def build(self, input_shape):
         bw_shape = self.bw_mapper.inference_weight_shape(input_shape)
 
-        self._k = self.add_weight(name="k", shape=bw_shape, initializer=self._k0, trainable=False, dtype='uint8')
-        self._b = self.add_weight(name="b", shape=bw_shape, initializer=self._b0, trainable=True, constraint=keras.constraints.NonNeg())
+        self._k = self.add_weight(
+            name="k",
+            shape=bw_shape,
+            initializer=self._k0,
+            trainable=False,
+            dtype='uint8'
+        )
+        self._b = self.add_weight(
+            name="b",
+            shape=bw_shape,
+            initializer=self._b0,
+            trainable=True,
+            constraint=self.b_constraint,
+            regularizer=self.b_regularizer
+        )
         i_trainable = self.overflow_mode != 'WRAP'
-        self._i = self.add_weight(name="i", shape=bw_shape, initializer=self._i0, trainable=i_trainable)
+        self._i = self.add_weight(
+            name="i",
+            shape=bw_shape,
+            initializer=self._i0,
+            trainable=i_trainable,
+            constraint=self.i_constraint,
+            regularizer=self.i_regularizer
+        )
         super().build(input_shape)
 
     @property
     def k(self):
-        return ops.cast(self._k, self.dtype)
+        return backend.convert_to_tensor(self._k, self.dtype)
 
     @property
     def b(self):
-        return round_conv(ops.cast(self._b, self.dtype))
+        return round_conv(backend.convert_to_tensor(self._b))
 
     @property
     def i(self):
-        return round_conv(ops.cast(self._i, self.dtype))
+        return round_conv(backend.convert_to_tensor(self._i))
 
     @property
     def f(self):
@@ -174,6 +208,17 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
         xr = self.bw_mapper.x_to_bw(inputs)
         return minimal_i_given_xb(xr, self.b, self.symmetric)
 
+    def validate_config(self):
+        assert self.overflow_mode in {'WRAP', 'SAT', 'SYM', 'SYM_SAT'}
+        assert self.round_mode in {'RND', 'TRN', 'RND_CONV', 'S_RND', 'S_RND_CONV'}
+        assert self.b_constraint is None or isinstance(self.b_constraint, Constraint)
+        assert self.i_constraint is None or isinstance(self.i_constraint, Constraint)
+        assert self.b_regularizer is None or isinstance(self.b_regularizer, Regularizer)
+        assert self.i_regularizer is None or isinstance(self.i_regularizer, Regularizer)
+        if self.overflow_mode == 'WRAP':
+            assert self.i_regularizer is None, "Regularization of i is not supported with overflow_mode='WRAP'."
+            assert self.i_constraint is None, "Constraint of i is not supported with overflow_mode='WRAP'."
+
 
 class FixedPointQuantizerKIF(FixedPointQuantizerBase):
     """Abstract base class for all fixed-point quantizers."""
@@ -185,6 +230,10 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
         f0: numbers,
         round_mode: str,
         overflow_mode: str,
+        ic: Constraint | None = None,
+        fc: Constraint | None = None,
+        ir: Regularizer | None = None,
+        fr: Regularizer | None = None,
         i_decay_speed: numbers = np.inf,
         **kwargs
     ):
@@ -198,15 +247,40 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
         self._i_decay_speed0 = i_decay_speed if isinstance(i_decay_speed, Initializer) else Constant(float(i_decay_speed))
         self._round_mode = round_mode.upper()
         self._overflow_mode = overflow_mode.upper()
+        self.i_constraint = ic
+        self.f_constraint = fc
+        self.i_regularizer = ir
+        self.f_regularizer = fr
+        self.validate_config()
         super().__init__(**kwargs)
 
     def build(self, input_shape):
         bw_shape = self.bw_mapper.inference_weight_shape(input_shape)
 
-        self._k = self.add_weight(name="k", shape=bw_shape, initializer=self._k0, trainable=False, dtype='uint8')
+        self._k = self.add_weight(
+            name="k",
+            shape=bw_shape,
+            initializer=self._k0,
+            trainable=False,
+            dtype='uint8'
+        )
         i_trainable = self.overflow_mode != 'WRAP'
-        self._i = self.add_weight(name="i", shape=bw_shape, initializer=self._i0, trainable=i_trainable)
-        self._f = self.add_weight(name="f", shape=bw_shape, initializer=self._f0, trainable=True)
+        self._i = self.add_weight(
+            name="i",
+            shape=bw_shape,
+            initializer=self._i0,
+            trainable=i_trainable,
+            constraint=self.i_constraint,
+            regularizer=self.i_regularizer
+        )
+        self._f = self.add_weight(
+            name="f",
+            shape=bw_shape,
+            initializer=self._f0,
+            trainable=True,
+            constraint=self.f_constraint,
+            regularizer=self.f_regularizer
+        )
 
         super().build(input_shape)
 
@@ -220,11 +294,11 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
 
     @property
     def i(self):
-        return round_conv(ops.cast(self._i, self.dtype))
+        return round_conv(backend.convert_to_tensor(self._i))
 
     @property
     def f(self):
-        return round_conv(ops.cast(self._f, self.dtype))
+        return round_conv(backend.convert_to_tensor(self._f))
 
     @property
     def kif(self):
@@ -233,3 +307,14 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
     def get_minimal_i(self, inputs):
         xr = self.bw_mapper.x_to_bw(inputs)
         return minimal_i_given_xf(xr, self.f, self.symmetric)
+
+    def validate_config(self):
+        assert self.overflow_mode in {'WRAP', 'SAT', 'SYM', 'SYM_SAT'}
+        assert self.round_mode in {'TRN', 'RND', 'RND_CONV', 'S_RND', 'S_RND_CONV'}
+        assert self.f_constraint is None or isinstance(self.f_constraint, Constraint)
+        assert self.i_constraint is None or isinstance(self.i_constraint, Constraint)
+        assert self.f_regularizer is None or isinstance(self.f_regularizer, Regularizer)
+        assert self.i_regularizer is None or isinstance(self.i_regularizer, Regularizer)
+        if self.overflow_mode == 'WRAP':
+            assert self.i_regularizer is None, "Regularization of i is not supported with overflow_mode='WRAP'."
+            assert self.i_constraint is None, "Constraint of i is not supported with overflow_mode='WRAP'."

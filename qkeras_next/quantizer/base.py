@@ -50,6 +50,7 @@ class TrainableQuantizerBase(Layer):
         self.bw_mapper = bw_mapper
         self._seed = kwargs.pop("seed", int(np.random.randint(0, 2**32)))
         super().__init__(**kwargs)
+        self.supports_masking = True
 
     @property
     def scale(self):
