@@ -46,7 +46,7 @@ class TrainableQuantizerBase(Layer):
     def __init__(self, **kwargs):
         homogeneous_axis = kwargs.pop("homogeneous_axis", None) or kwargs.pop("skip_axis", ())
         heterogeneous_axis = kwargs.pop("heterogeneous_axis", None) or kwargs.pop("quantize_axis", None)
-        bw_mapper: BitwidthMapperBase = kwargs.pop("bw_mapper", DefaultBitwidthMapper(heterogeneous_axis, homogeneous_axis))
+        bw_mapper: BitwidthMapperBase = kwargs.pop("bw_mapper", None) or DefaultBitwidthMapper(heterogeneous_axis, homogeneous_axis)
         self.bw_mapper = bw_mapper
         self._seed = kwargs.pop("seed", int(np.random.randint(0, 2**32)))
         super().__init__(**kwargs)

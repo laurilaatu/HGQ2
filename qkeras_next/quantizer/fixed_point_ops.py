@@ -153,7 +153,7 @@ def get_fixed_quantizer(round_mode: str = 'TRN', overflow_mode: str = 'WRAP') ->
     if sat_fn is None:
         raise ValueError(f"Unknown saturation mode: {overflow_mode}")  # pragma: no cover
 
-    def quantizer(x, k, i, f, training: bool | None = None, seed_gen: keras.random.SeedGenerator | None = None) -> T:
+    def quantizer(x: T, k: T, i: T, f: T, training: bool | None = None, seed_gen: keras.random.SeedGenerator | None = None) -> T:
         """Stateless fixed-point quantizer.
         Args:
             x: input tensor

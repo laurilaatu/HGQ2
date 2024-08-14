@@ -78,6 +78,10 @@ class FloatPointQuantizer(TrainableQuantizerBase):
     def e0(self):
         return round_conv(backend.convert_to_tensor(self._e0))  # type: ignore
 
+    @property
+    def bits(self):
+        return self.m + self.e  # type: ignore
+
     def call(self, inputs, training=None):
         m = self.bw_mapper.bw_to_x(self.m, ops.shape(inputs))
         e = self.bw_mapper.bw_to_x(self.e, ops.shape(inputs))
