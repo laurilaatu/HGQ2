@@ -18,21 +18,21 @@ class Quantizer(Layer):
         ...
 
     @overload
-    def __init__(self, type: str, default='input', **kwargs):
+    def __init__(self, q_type='default', place='input', **kwargs):
         ...
 
     def __init__(self, *args, **kwargs):
         self.supports_masking = True
         self.config, kwargs = self.get_quantizer_config_kwargs(*args, **kwargs)
         super().__init__(**kwargs)
-        if self.config.type == 'float':
+        if self.config.q_type == 'float':
             self.quantizer = FloatPointQuantizer(**self.config)
-        elif self.config.type == 'kif':
+        elif self.config.q_type == 'kif':
             self.quantizer = FixedPointQuantizerKIF(**self.config)
-        elif self.config.type == 'kbi':
+        elif self.config.q_type == 'kbi':
             self.quantizer = FixedPointQuantizerKBI(**self.config)
         else:
-            raise ValueError(f"Unknown quantizer type: {self.config.type}")
+            raise ValueError(f"Unknown quantizer type: {self.config.q_type}")
 
     def build(self, input_shape):
         self.quantizer.build(input_shape)
@@ -71,4 +71,4 @@ class Quantizer(Layer):
         return self.quantizer.bits
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(type={self.config.type}, name={self.name}, built={self.built})"
+        return f"{self.__class__.__name__}(q_type={self.config.q_type}, name={self.name}, built={self.built})"

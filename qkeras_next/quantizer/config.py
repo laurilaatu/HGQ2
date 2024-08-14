@@ -12,11 +12,17 @@ from qkeras_next.utils.constraints import Min, MinMax
 
 from .base import BitwidthMapperBase, numbers
 
+default_q_type = {
+    'weight': 'kbi',
+    'input': 'kbi',
+}
+
 
 class QuantizerConfigBase(TypedDict):
     homogeneous_axis: Sequence[int]
     heterogeneous_axis: Sequence[int] | None
     bw_mapper: BitwidthMapperBase | None
+    trainable: bool
 
 
 def _serialize_config(config: QuantizerConfigBase):
@@ -74,7 +80,8 @@ kbi_weight_default = KBIConfig(
     i_decay_speed=float('inf'),
     homogeneous_axis=(),
     heterogeneous_axis=None,
-    bw_mapper=None
+    bw_mapper=None,
+    trainable=True,
 )
 
 kbi_input_default = KBIConfig(
@@ -90,7 +97,8 @@ kbi_input_default = KBIConfig(
     i_decay_speed=0.01,
     homogeneous_axis=(0,),
     heterogeneous_axis=None,
-    bw_mapper=None
+    bw_mapper=None,
+    trainable=True,
 )
 
 kif_weight_default = KIFConfig(
@@ -107,6 +115,7 @@ kif_weight_default = KIFConfig(
     homogeneous_axis=(),
     heterogeneous_axis=None,
     bw_mapper=None,
+    trainable=True,
 )
 
 kif_input_default = KIFConfig(
@@ -123,13 +132,14 @@ kif_input_default = KIFConfig(
     homogeneous_axis=(0,),
     heterogeneous_axis=None,
     bw_mapper=None,
+    trainable=True,
 )
 
 float_weight_default = FloatConfig(
     m0=2,
     e0=2,
     e00=0,
-    mc=Min(-1),
+    mc=MinMax(-1, 8),
     ec=MinMax(0, 4),
     e0c=MinMax(-16, 16),
     mr=None,
@@ -138,13 +148,14 @@ float_weight_default = FloatConfig(
     homogeneous_axis=(),
     heterogeneous_axis=None,
     bw_mapper=None,
+    trainable=True,
 )
 
 float_weight_default = FloatConfig(
     m0=2,
     e0=2,
     e00=0,
-    mc=Min(-1),
+    mc=MinMax(-1, 8),
     ec=MinMax(0, 4),
     e0c=MinMax(-16, 16),
     mr=None,
@@ -153,6 +164,7 @@ float_weight_default = FloatConfig(
     homogeneous_axis=(0,),
     heterogeneous_axis=None,
     bw_mapper=None,
+    trainable=True,
 )
 
 default_configs: dict[tuple[str, str], QuantizerConfigBase] = {
@@ -164,7 +176,7 @@ default_configs: dict[tuple[str, str], QuantizerConfigBase] = {
     ('float', 'input'): float_weight_default,
 }
 
-all_quantizer_keys = {k for v in default_configs.values() for k in v.keys()} | {'type', 'default'}
+all_quantizer_keys = {k for v in default_configs.values() for k in v.keys()} | {'q_type', 'place'}
 
 
 @register_keras_serializable(package='qkeras_next')
@@ -173,8 +185,8 @@ class QuantizerConfig(Mapping):
     @overload
     def __init__(
         self,
-        type: str,
-        default: str = 'weight',
+        q_type: str,
+        place: str = 'input',
         *,
         k0: numbers | bool | Initializer = True,
         b0: numbers | Initializer = 4,
@@ -194,10 +206,10 @@ class QuantizerConfig(Mapping):
 
         Parameters
         ----------
-        type : str
+        q_type : str
             The type of the quantizer. 'kbi' for this implementation.
-        default : str
-            The default config to be loaded of the quantizer. One of 'weight', 'input'.
+        place : str
+            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'input'.
         k0 : numbers | bool | Initializer, optional
             If the quantizer allows negative values, by default True
         b0 : numbers | Initializer, optional
@@ -230,8 +242,8 @@ class QuantizerConfig(Mapping):
     @overload
     def __init__(
         self,
-        type: str,
-        default: str = 'weight',
+        q_type: str,
+        place: str = 'input',
         *,
         k0: numbers | bool | Initializer = True,
         i0: numbers | Initializer = 4,
@@ -250,10 +262,10 @@ class QuantizerConfig(Mapping):
 
         Parameters
         ----------
-        type : str
+        q_type : str
             The type of the quantizer. 'kif' for this implementation.
-        default : str
-            The default config to be loaded of the quantizer. One of 'weight', 'input'.
+        place : str
+            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'input'.
         k0 : numbers | bool | Initializer, optional
             If the quantizer allows negative values, by default True
         i0 : numbers | Initializer, optional
@@ -284,8 +296,8 @@ class QuantizerConfig(Mapping):
     @overload
     def __init__(
         self,
-        type: str,
-        default: str = 'weight',
+        q_type: str,
+        place: str = 'input',
         *,
         m0: numbers | Initializer = 2,
         e0: numbers | Initializer = 1,
@@ -303,10 +315,10 @@ class QuantizerConfig(Mapping):
 
         Parameters
         ----------
-        type : str
+        q_type : str
             The type of the quantizer. 'float' for this implementation.
-        default : str
-            The default config to be loaded of the quantizer. One of 'weight', 'input'.
+        place : str
+            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'input'.
         m0 : numbers | Initializer, optional
             The initial value of the number of mantissa bits, by default 2
         e0 : numbers | Initializer, optional
@@ -332,20 +344,24 @@ class QuantizerConfig(Mapping):
         """
         ...
 
-    def __init__(self, type: str, default: str = 'weight', **kwargs) -> None:
+    def __init__(self, q_type: str = 'default', place: str = 'input', **kwargs) -> None:
         """Universal quantizer config. The type of the quantizer is specified by the `type` argument.
 
         Parameters
         ----------
-        type : str
-            The type of the quantizer. One of 'kbi', 'kif', 'float'
-        default : str, optional
+        q_type : str
+            The type of the quantizer. One of 'kbi', 'kif', 'float', 'default'. If 'default', the default quantizer type is used, by default 'kbi'. Can be overridden by the `default_q_type` argument of `QuantizerConfigScope`.
+        place : str, optional
             The default config to be loaded of the quantizer. One of 'weight', 'input', by default 'weight'
         """
-        type = type.lower()
-        default = default.lower()
-        assert type in ('kbi', 'kif', 'float')
-        assert default in ('weight', 'input', 'all')
+
+        place = place.lower()
+        assert place in ('weight', 'input', 'all')
+
+        q_type = q_type.lower()
+        if q_type == 'default':
+            q_type = default_q_type[place]
+        assert q_type in ('kbi', 'kif', 'float')
 
         assert kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None, \
             "homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them."
@@ -355,19 +371,19 @@ class QuantizerConfig(Mapping):
         if kwargs.get('heterogeneous_axis') is not None:
             kwargs['homogeneous_axis'] = None
 
-        config = default_configs.get((type, default))
-        assert config is not None, f"Default config for ({type}, {default}) not found."
+        config = default_configs.get((q_type, place))
+        assert config is not None, f"Default config for ({q_type}, {place}) not found."
         self.config = config.copy()
 
         if self.config is not None:
             for k, v in kwargs.items():
                 if k not in self.config:
-                    raise ValueError(f"{k} is not a valid parameter for {type} quantizer config.")
+                    raise ValueError(f"{k} is not a valid parameter for {q_type} quantizer config.")
                 self.config[k] = v
 
         self.kwargs = kwargs
-        self.type = type
-        self.default = default
+        self.q_type = q_type
+        self.place = place
         self._tmp_storage = {}
 
     def __getitem__(self, key):
@@ -381,8 +397,8 @@ class QuantizerConfig(Mapping):
 
     def get_config(self):
         return {
-            'type': self.type,
-            'default': self.default,
+            'q_type': self.q_type,
+            'place': self.place,
             **_serialize_config(self.config)
         }
 
@@ -394,21 +410,23 @@ class QuantizerConfig(Mapping):
 
 
 class QuantizerConfigScope:
-    def __init__(self, type: str = 'all', default: str = 'all', **kwargs):
+    def __init__(self, q_type: str = 'all', place: str = 'all', default_q_type=None, **kwargs):
         """Override default quantizer config within a context.
 
         Parameters
         ----------
-        type : str
-            The type of the quantizer. One of 'kbi', 'kif', 'float', 'all'
-        default : str
-            The default config to be loaded of the quantizer. One of 'weight', 'input', 'all'
-
+        q_type : str
+            The type of the quantizers. One of 'kbi', 'kif', 'float', 'all'
+        place : str
+            The location of the quantizers. One of 'weight', 'input', 'all'.
+        default_q_type : str, optional
+            The default quantizer type to be used. If None, the default quantizer type is not changed. One of 'kbi', 'kif', 'float', by default None
         """
-        type = type.lower()
-        default = default.lower()
-        assert type in ('kbi', 'kif', 'float', 'all')
-        assert default in ('weight', 'input', 'all')
+
+        q_type = q_type.lower()
+        place = place.lower()
+        assert q_type in ('kbi', 'kif', 'float', 'all')
+        assert place in ('weight', 'input', 'all')
 
         assert kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None, \
             "homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them."
@@ -431,23 +449,37 @@ class QuantizerConfigScope:
             if k not in all_quantizer_keys:
                 raise ValueError(f"{k} is not a valid parameter for any known quantizer configs.")
 
-        self.type = type
-        self.default = default
+        self.q_type = q_type
+        self.place = place
         self.kwargs = kwargs
+        self.default_q_type = default_q_type
         self._tmp_storage = {}
 
     def __enter__(self):
-        for (type, default), default_conf in default_configs.items():
-            if (self.type == type or self.type == 'all') and \
-               (self.default == default or self.default == 'all'):
-                self._tmp_storage[(type, default)] = default_conf.copy()
+        for (q_type, place), default_conf in default_configs.items():
+            if (self.q_type == q_type or self.q_type == 'all') and \
+               (self.place == place or self.place == 'all'):
+                self._tmp_storage[(q_type, place)] = default_conf.copy()
                 for k, v in self.kwargs.items():
                     if k in default_conf:
                         default_conf[k] = v
+        if self.default_q_type is not None:
+            if self.place in ('weight', 'all'):
+                self._tmp_storage['weight_default_q_type'] = default_q_type
+                default_q_type['weight'] = self.default_q_type
+            if self.place in ('input', 'all'):
+                self._tmp_storage['input_default_q_type'] = default_q_type
+                default_q_type['input'] = self.default_q_type
 
     def __exit__(self, exc_type, exc_value, traceback):
-        for (type, default) in self._tmp_storage:
-            default_configs[(type, default)].update(self._tmp_storage[(type, default)])
+        q_type = self._tmp_storage.pop('weight_default_q_type', None)
+        if q_type is not None:
+            default_q_type['weight'] = q_type
+        q_type = self._tmp_storage.pop('input_default_q_type', None)
+        if q_type is not None:
+            default_q_type['input'] = q_type
+        for (q_type, place) in self._tmp_storage:
+            default_configs[(q_type, place)].update(self._tmp_storage[(q_type, place)])
         self._tmp_storage.clear()
 
     def override(self):
