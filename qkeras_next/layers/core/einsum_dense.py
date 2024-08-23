@@ -44,79 +44,50 @@ class QEinsumDense(QLayerBase, EinsumDense):
         )
 
         kq_conf = kq_conf or QuantizerConfig('default', 'weight')
-        self.kq = Quantizer(kq_conf)
+        self._kq = Quantizer(kq_conf)
         bq_conf = bq_conf or QuantizerConfig('default', 'bias')
-        self.bq = None if bias_axes is None else Quantizer(bq_conf)
+        self._bq = None if bias_axes is None else Quantizer(bq_conf)
+
+    @property
+    def kq(self):
+        return self._kq
+
+    @property
+    def bq(self):
+        return self._bq
 
     def build(self, input_shape):
         super().build(input_shape)
-        shape_data = _analyze_einsum_string(
-            self.equation,
-            self.bias_axes,
-            input_shape,
-            self.partial_output_shape,
-        )
-        kernel_shape, bias_shape, full_output_shape = shape_data
-        self.full_output_shape = tuple(full_output_shape)
 
-        self._kernel = self.add_weight(
-            name="kernel",
-            shape=tuple(kernel_shape),
-            initializer=self.kernel_initializer,
-            regularizer=self.kernel_regularizer,
-            constraint=self.kernel_constraint,
-            dtype=self.dtype,
-            trainable=True,
-        )
-        self.kq.build(kernel_shape)
-
-        if bias_shape is not None:
-            self._bias = self.add_weight(
-                name="bias",
-                shape=tuple(bias_shape),
-                initializer=self.bias_initializer,
-                regularizer=self.bias_regularizer,
-                constraint=self.bias_constraint,
-                dtype=self.dtype,
-                trainable=True,
-            )
+        self.kq.build(ops.shape(self._kernel))
+        if self.bias is not None:
             assert self.bq is not None
-            self.bq.build(bias_shape)
-        else:
-            self._bias = None
-        self.built = True
+            self.bq.build(ops.shape(self.bias))
 
     @property
     def kernel(self):
-        return self.kq(self._kernel)
-
-    @property
-    def bias(self):
-        if self._bias is None:
-            return None
-        assert self.bq is not None
-        return self.bq(self._bias)
+        return self._kernel
 
     def call(self, inputs, training=None):
         qkernel = self.kq(self._kernel, training=training)
         qinputs = self.iq(inputs, training=training)
         x = ops.einsum(self.equation, qinputs, qkernel)
-        if self._bias is not None:
+        if self.bias is not None:
             assert self.bq is not None
-            x += self.bq(self._bias, training=training)
+            x += self.bq(self.bias, training=training)
         if self.activation is not None:
             x = self.activation(x)
 
         if self.enable_ebops:
             shape = tuple(ops.shape(inputs))
             bw_inp = self.iq.bits_((1,) + shape[1:])
-            bw_ker = self.kq.bits_(ops.shape(self._kernel))
+            bw_ker = self.kq.bits_(ops.shape(self.kernel))
             ebops = ops.sum(ops.einsum(self.equation, bw_inp, bw_ker))
             if self.bq is not None:
                 bw_bias = self.bq.bits_(bw_inp)
                 ebops = ebops + ops.sum(bw_bias)  # type: ignore
 
-            self.ebops.assign(ops.cast(ebops, self.ebops.dtype))
+            self._ebops.assign(ops.cast(ebops, self._ebops.dtype))
             self.add_loss(self.beta * ebops)
         return x
 

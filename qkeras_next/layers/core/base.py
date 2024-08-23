@@ -2,6 +2,7 @@ from keras import ops
 from keras.api.initializers import Constant, Initializer
 from keras.api.layers import Concatenate, Layer
 from keras.api.saving import deserialize_keras_object, serialize_keras_object
+from keras.src import backend
 
 from ...quantizer import Quantizer, QuantizerConfig, numbers
 from ...utils.config.layer import global_config
@@ -32,17 +33,18 @@ class QLayerBase(QLayerAbsBase):
 
     @property
     def beta(self):
-        return self._beta
+        return backend.convert_to_tensor(self._beta)
 
     @property
     def ebops(self):
-        return self._ebops
+        return backend.convert_to_tensor(self._ebops)
 
     @property
     def enable_ebops(self):
         return self._enable_ebops
 
     def build(self, input_shape):
+        super().build(input_shape)
         self.iq.build(input_shape)
         if self.enable_ebops:
             self._beta = self.add_weight(
@@ -56,7 +58,7 @@ class QLayerBase(QLayerAbsBase):
                 shape=(),
                 initializer=Constant(0.),
                 trainable=False,
-                dtype='float32'
+                dtype='uint32'
             )
 
     def get_config(self):
@@ -69,6 +71,9 @@ class QLayerBase(QLayerAbsBase):
     def from_config(cls, config):
         config['iq_conf'] = deserialize_keras_object(config['iq_conf'])
         return super().from_config(config)
+
+    def enable_lora(self, *args, **kwargs):
+        raise NotImplementedError("LoRA is not supported in qkeras_next.")
 
 
 class QLayerBaseMultiInputs(QLayerAbsBase):
