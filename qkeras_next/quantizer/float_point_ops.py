@@ -3,7 +3,7 @@ from keras import ops
 
 
 @ops.custom_gradient
-def float_quantize(x, m, e, e0=0):
+def float_quantize(x, m, e, e0=0.):
     '''Quantize an array to floatlet (m mantissa bits, excl. sign bit, e exponent bits) format. Tentative gradient impl.'''
     m = m + 1
     eps = 1e-7

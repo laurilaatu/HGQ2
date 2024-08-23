@@ -1,20 +1,23 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from itertools import chain
 from typing import TypedDict, overload
 
 from keras.api.constraints import Constraint
 from keras.api.initializers import Initializer
-from keras.api.regularizers import Regularizer
+from keras.api.regularizers import L1, Regularizer
 from keras.api.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
 
 from qkeras_next.quantizer.base import BitwidthMapperBase
 from qkeras_next.utils.constraints import Min, MinMax
 
-from .base import BitwidthMapperBase, numbers
+from ...quantizer.base import BitwidthMapperBase
+from .. import numbers
 
 default_q_type = {
     'weight': 'kbi',
     'input': 'kbi',
+    'bias': 'kbi',
 }
 
 
@@ -23,10 +26,6 @@ class QuantizerConfigBase(TypedDict):
     heterogeneous_axis: Sequence[int] | None
     bw_mapper: BitwidthMapperBase | None
     trainable: bool
-
-
-def _serialize_config(config: QuantizerConfigBase):
-    return {k: serialize_keras_object(v) for k, v in config.items()}
 
 
 class KBIConfig(QuantizerConfigBase):
@@ -75,7 +74,24 @@ kbi_weight_default = KBIConfig(
     overflow_mode='WRAP',
     bc=MinMax(0, 12),
     ic=None,
-    br=None,
+    br=L1(1e-6),
+    ir=None,
+    i_decay_speed=float('inf'),
+    homogeneous_axis=(),
+    heterogeneous_axis=None,
+    bw_mapper=None,
+    trainable=True,
+)
+
+kbi_bias_default = KBIConfig(
+    k0=True,
+    b0=4,
+    i0=2,
+    round_mode='RND',
+    overflow_mode='WRAP',
+    bc=MinMax(0, 12),
+    ic=None,
+    br=L1(1e-6),
     ir=None,
     i_decay_speed=float('inf'),
     homogeneous_axis=(),
@@ -92,7 +108,7 @@ kbi_input_default = KBIConfig(
     overflow_mode='SAT',
     bc=MinMax(0, 12),
     ic=None,
-    br=None,
+    br=L1(1e-6),
     ir=None,
     i_decay_speed=0.01,
     homogeneous_axis=(0,),
@@ -108,9 +124,26 @@ kif_weight_default = KIFConfig(
     round_mode='RND',
     overflow_mode='SAT',
     ic=MinMax(-12, 12),
-    ir=None,
+    ir=L1(1e-6),
     fc=MinMax(-12, 12),
-    fr=None,
+    fr=L1(1e-6),
+    i_decay_speed=float('inf'),
+    homogeneous_axis=(),
+    heterogeneous_axis=None,
+    bw_mapper=None,
+    trainable=True,
+)
+
+kif_bias_default = KIFConfig(
+    k0=True,
+    i0=4,
+    f0=2,
+    round_mode='RND',
+    overflow_mode='SAT',
+    ic=MinMax(-12, 12),
+    ir=L1(1e-6),
+    fc=MinMax(-12, 12),
+    fr=L1(1e-6),
     i_decay_speed=float('inf'),
     homogeneous_axis=(),
     heterogeneous_axis=None,
@@ -125,9 +158,9 @@ kif_input_default = KIFConfig(
     round_mode='RND',
     overflow_mode='SAT',
     ic=MinMax(-12, 12),
-    ir=None,
+    ir=L1(1e-6),
     fc=MinMax(-12, 12),
-    fr=None,
+    fr=L1(1e-6),
     i_decay_speed=0.01,
     homogeneous_axis=(0,),
     heterogeneous_axis=None,
@@ -142,8 +175,8 @@ float_weight_default = FloatConfig(
     mc=MinMax(-1, 8),
     ec=MinMax(0, 4),
     e0c=MinMax(-16, 16),
-    mr=None,
-    er=None,
+    mr=L1(1e-6),
+    er=L1(1e-6),
     e0r=None,
     homogeneous_axis=(),
     heterogeneous_axis=None,
@@ -151,15 +184,31 @@ float_weight_default = FloatConfig(
     trainable=True,
 )
 
-float_weight_default = FloatConfig(
+float_bias_default = FloatConfig(
     m0=2,
     e0=2,
     e00=0,
     mc=MinMax(-1, 8),
     ec=MinMax(0, 4),
     e0c=MinMax(-16, 16),
-    mr=None,
-    er=None,
+    mr=L1(1e-6),
+    er=L1(1e-6),
+    e0r=None,
+    homogeneous_axis=(),
+    heterogeneous_axis=None,
+    bw_mapper=None,
+    trainable=True,
+)
+
+float_input_default = FloatConfig(
+    m0=2,
+    e0=2,
+    e00=0,
+    mc=MinMax(-1, 8),
+    ec=MinMax(0, 4),
+    e0c=MinMax(-16, 16),
+    mr=L1(1e-6),
+    er=L1(1e-6),
     e0r=None,
     homogeneous_axis=(0,),
     heterogeneous_axis=None,
@@ -169,11 +218,16 @@ float_weight_default = FloatConfig(
 
 default_configs: dict[tuple[str, str], QuantizerConfigBase] = {
     ('kbi', 'weight'): kbi_weight_default,
+    ('kbi', 'bias'): kbi_bias_default,
     ('kbi', 'input'): kbi_input_default,
+
     ('kif', 'weight'): kif_weight_default,
+    ('kif', 'bias'): kif_bias_default,
     ('kif', 'input'): kif_input_default,
+
     ('float', 'weight'): float_weight_default,
-    ('float', 'input'): float_weight_default,
+    ('float', 'bias'): float_bias_default,
+    ('float', 'input'): float_input_default,
 }
 
 all_quantizer_keys = {k for v in default_configs.values() for k in v.keys()} | {'q_type', 'place'}
@@ -209,7 +263,7 @@ class QuantizerConfig(Mapping):
         q_type : str
             The type of the quantizer. 'kbi' for this implementation.
         place : str
-            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'input'.
+            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'input', and 'bias'.
         k0 : numbers | bool | Initializer, optional
             If the quantizer allows negative values, by default True
         b0 : numbers | Initializer, optional
@@ -265,7 +319,7 @@ class QuantizerConfig(Mapping):
         q_type : str
             The type of the quantizer. 'kif' for this implementation.
         place : str
-            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'input'.
+            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'input', and 'bias'.
         k0 : numbers | bool | Initializer, optional
             If the quantizer allows negative values, by default True
         i0 : numbers | Initializer, optional
@@ -318,7 +372,7 @@ class QuantizerConfig(Mapping):
         q_type : str
             The type of the quantizer. 'float' for this implementation.
         place : str
-            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'input'.
+            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'input', and 'bias'.
         m0 : numbers | Initializer, optional
             The initial value of the number of mantissa bits, by default 2
         e0 : numbers | Initializer, optional
@@ -356,12 +410,12 @@ class QuantizerConfig(Mapping):
         """
 
         place = place.lower()
-        assert place in ('weight', 'input', 'all')
+        assert place in ('weight', 'input', 'bias', 'all'), f"Invalid place: {place}"
 
         q_type = q_type.lower()
         if q_type == 'default':
             q_type = default_q_type[place]
-        assert q_type in ('kbi', 'kif', 'float')
+        assert q_type in ('kbi', 'kif', 'float'), f"Invalid quantizer type: {q_type}"
 
         assert kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None, \
             "homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them."
@@ -399,14 +453,12 @@ class QuantizerConfig(Mapping):
         return {
             'q_type': self.q_type,
             'place': self.place,
-            **_serialize_config(self.config)
+            **self.config
         }
 
     @classmethod
     def from_config(cls, config):
-        for k, v in config.items():
-            config[k] = deserialize_keras_object(v)
-        return cls(**config)
+        return cls(**deserialize_keras_object(config))
 
 
 class QuantizerConfigScope:
@@ -418,7 +470,7 @@ class QuantizerConfigScope:
         q_type : str
             The type of the quantizers. One of 'kbi', 'kif', 'float', 'all'
         place : str
-            The location of the quantizers. One of 'weight', 'input', 'all'.
+            The location of the quantizers. One of 'weight', 'input', 'bias', and 'all'
         default_q_type : str, optional
             The default quantizer type to be used. If None, the default quantizer type is not changed. One of 'kbi', 'kif', 'float', by default None
         """
@@ -465,11 +517,14 @@ class QuantizerConfigScope:
                         default_conf[k] = v
         if self.default_q_type is not None:
             if self.place in ('weight', 'all'):
-                self._tmp_storage['weight_default_q_type'] = default_q_type
+                self._tmp_storage['weight_default_q_type'] = default_q_type['weight']
                 default_q_type['weight'] = self.default_q_type
             if self.place in ('input', 'all'):
-                self._tmp_storage['input_default_q_type'] = default_q_type
+                self._tmp_storage['input_default_q_type'] = default_q_type['input']
                 default_q_type['input'] = self.default_q_type
+            if self.place in ('bias', 'all'):
+                self._tmp_storage['bias_default_q_type'] = default_q_type['bias']
+                default_q_type['bias'] = self.default_q_type
 
     def __exit__(self, exc_type, exc_value, traceback):
         q_type = self._tmp_storage.pop('weight_default_q_type', None)
@@ -478,6 +533,9 @@ class QuantizerConfigScope:
         q_type = self._tmp_storage.pop('input_default_q_type', None)
         if q_type is not None:
             default_q_type['input'] = q_type
+        q_type = self._tmp_storage.pop('bias_default_q_type', None)
+        if q_type is not None:
+            default_q_type['bias'] = q_type
         for (q_type, place) in self._tmp_storage:
             default_configs[(q_type, place)].update(self._tmp_storage[(q_type, place)])
         self._tmp_storage.clear()

@@ -1,9 +1,10 @@
 from typing import overload
 
+from keras import ops
 from keras.api.layers import Layer
 from keras.api.saving import register_keras_serializable
 
-from .config import QuantizerConfig, all_quantizer_keys
+from ..utils.config.quantizer import QuantizerConfig, all_quantizer_keys
 from .fixed_point_quantizer import FixedPointQuantizerKBI, FixedPointQuantizerKIF
 from .float_point_quantizer import FloatPointQuantizer
 
@@ -14,7 +15,7 @@ class Quantizer(Layer):
     """
 
     @overload
-    def __init__(self, config: QuantizerConfig):
+    def __init__(self, config: QuantizerConfig, **kwargs):
         ...
 
     @overload
@@ -54,17 +55,12 @@ class Quantizer(Layer):
         return config, kwargs
 
     def call(self, inputs, training=None):
-        return self.quantizer(inputs, training=training)
+        return self.quantizer.call(inputs, training=training)
 
     def get_config(self):
         config = super().get_config()
-        config['config'] = self.config.get_config()
+        config['config'] = self.config
         return config
-
-    @classmethod
-    def from_config(cls, config):
-        quantizer_config = QuantizerConfig.from_config(config.pop('config'))
-        return cls(quantizer_config, **config)
 
     @property
     def bits(self):
@@ -72,3 +68,7 @@ class Quantizer(Layer):
 
     def __repr__(self):
         return f"{self.__class__.__name__}(q_type={self.config.q_type}, name={self.name}, built={self.built})"
+
+    def bits_(self, shape):
+        bits = self.bits
+        return self.quantizer.bw_mapper.bw_to_x(bits, shape)

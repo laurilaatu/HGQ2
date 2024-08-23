@@ -12,16 +12,16 @@ from .fixed_point_ops import get_fixed_quantizer, round_conv
 
 
 def minimal_i_given_xb(x, b, symmetric=False):
-    eps = 3e-8  # 1/2 fp16 minimal positive
+    eps = 1e-6
     if symmetric:
-        return ops.ceil(ops.log2(ops.abs(x) / (2**-b) + eps))
-    i_pos = ops.ceil(ops.log2(x / (1 - 2**-b) + eps))
+        return ops.ceil(ops.log2(ops.abs(x) / (2**-b + eps) + eps))
+    i_pos = ops.ceil(ops.log2(x / (1 - 2**-b + eps) + eps))
     i_neg = ops.ceil(ops.log2(-x - eps))
     return ops.where(x >= 0, i_pos, i_neg)
 
 
 def minimal_i_given_xf(x, f, symmetric=False):
-    eps = 3e-8  # 1/2 fp16 minimal positive
+    eps = 1e-6
     if symmetric:
         return ops.ceil(ops.log2(ops.abs(x) + 2**-f))
     i_pos = ops.ceil(ops.log2(x + 2**-f))
@@ -53,7 +53,7 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
             self._seed_gen = keras.random.SeedGenerator(self._seed)
         self.stateless_quantizer = get_fixed_quantizer(self.round_mode, self.overflow_mode)
         if self.overflow_mode == 'WRAP':
-            init = keras.initializers.Constant(self._i_decay_speed0)
+            init = Constant(self._i_decay_speed0) if not isinstance(self._i_decay_speed0, Initializer) else self._i_decay_speed0
             self._i_decay_speed = self.add_weight(name="i_decay_speed", shape=(), initializer=init, trainable=False)
         self._symmetric = self.overflow_mode.endswith('SYM')
 
@@ -290,7 +290,7 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
 
     @property
     def b(self):
-        return self.i + self.f  # type: ignore
+        return ops.relu(self.i + self.f)  # type: ignore
 
     @property
     def i(self):
