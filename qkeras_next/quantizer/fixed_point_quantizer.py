@@ -104,7 +104,7 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
         raise NotImplementedError
 
     def call(self, inputs, training=None):
-        if self.overflow_mode == 'WRAP':
+        if self.overflow_mode == 'WRAP' and self.trainable:
             _new_i = self.get_minimal_i(inputs)
             current_i = backend.convert_to_tensor(self._i)
             if training:
