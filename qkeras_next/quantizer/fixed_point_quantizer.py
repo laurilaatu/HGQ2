@@ -104,9 +104,13 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
         raise NotImplementedError
 
     def call(self, inputs, training=None):
-        if training and self.overflow_mode == 'WRAP':
+        if self.overflow_mode == 'WRAP':
             _new_i = self.get_minimal_i(inputs)
-            new_i = ops.stop_gradient(ops.maximum((self._i - self.i_decay_speed), _new_i))
+            current_i = backend.convert_to_tensor(self._i)
+            if training:
+                new_i = ops.stop_gradient(ops.maximum((current_i - self.i_decay_speed), _new_i))
+            else:
+                new_i = ops.where(self.i_decay_speed > 0, current_i, ops.maximum(current_i, _new_i))
             self._i.assign(new_i)
 
         k, i, f = self.kif
@@ -215,9 +219,6 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
         assert self.i_constraint is None or isinstance(self.i_constraint, Constraint)
         assert self.b_regularizer is None or isinstance(self.b_regularizer, Regularizer)
         assert self.i_regularizer is None or isinstance(self.i_regularizer, Regularizer)
-        if self.overflow_mode == 'WRAP':
-            assert self.i_regularizer is None, "Regularization of i is not supported with overflow_mode='WRAP'."
-            assert self.i_constraint is None, "Constraint of i is not supported with overflow_mode='WRAP'."
 
 
 class FixedPointQuantizerKIF(FixedPointQuantizerBase):
@@ -315,6 +316,3 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
         assert self.i_constraint is None or isinstance(self.i_constraint, Constraint)
         assert self.f_regularizer is None or isinstance(self.f_regularizer, Regularizer)
         assert self.i_regularizer is None or isinstance(self.i_regularizer, Regularizer)
-        if self.overflow_mode == 'WRAP':
-            assert self.i_regularizer is None, "Regularization of i is not supported with overflow_mode='WRAP'."
-            assert self.i_constraint is None, "Constraint of i is not supported with overflow_mode='WRAP'."
