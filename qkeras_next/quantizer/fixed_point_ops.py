@@ -137,7 +137,7 @@ def sat_sym(x, k, i, f, training=None):
     return r
 
 
-def get_fixed_quantizer(round_mode: str = 'TRN', overflow_mode: str = 'WRAP') -> Callable[[T, Any, Any, Any, bool | None], T]:
+def get_fixed_quantizer(round_mode: str = 'TRN', overflow_mode: str = 'WRAP') -> Callable[[T, Any, Any, Any, bool | None, SeedGenerator | None], T]:
     """Get a stateless fixed-point quantizer given the round and overflow mode.
     The quantizer is differentiable w.r.t. to the input and f, also i if using saturation overflow mode.
 
@@ -153,7 +153,7 @@ def get_fixed_quantizer(round_mode: str = 'TRN', overflow_mode: str = 'WRAP') ->
     if sat_fn is None:
         raise ValueError(f"Unknown saturation mode: {overflow_mode}")  # pragma: no cover
 
-    def quantizer(x: T, k: T, i: T, f: T, training: bool | None = None, seed_gen: keras.random.SeedGenerator | None = None) -> T:
+    def quantizer(x: T, k: T, i: T, f: T, training: bool | None = None, seed_gen: SeedGenerator | None = None) -> T:
         """Stateless fixed-point quantizer.
         Args:
             x: input tensor

@@ -5,14 +5,13 @@ from typing import TypedDict, overload
 
 from keras.api.constraints import Constraint
 from keras.api.initializers import Initializer
-from keras.api.regularizers import L1, Regularizer
+from keras.api.regularizers import Regularizer
 from keras.api.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
 
-from qkeras_next.quantizer.base import BitwidthMapperBase
-from qkeras_next.utils.constraints import Min, MinMax
-
 from ...quantizer.base import BitwidthMapperBase
+from ...utils.constraints import Min, MinMax
 from .. import numbers
+from ..regularizers import MonoL1
 
 default_q_type = {
     'weight': 'kbi',
@@ -74,7 +73,7 @@ kbi_weight_default = KBIConfig(
     overflow_mode='WRAP',
     bc=MinMax(0, 12),
     ic=None,
-    br=L1(1e-6),
+    br=MonoL1(1e-6),
     ir=None,
     i_decay_speed=float('inf'),
     homogeneous_axis=(),
@@ -91,7 +90,7 @@ kbi_bias_default = KBIConfig(
     overflow_mode='WRAP',
     bc=MinMax(0, 12),
     ic=None,
-    br=L1(1e-6),
+    br=MonoL1(1e-6),
     ir=None,
     i_decay_speed=float('inf'),
     homogeneous_axis=(),
@@ -105,10 +104,10 @@ kbi_input_default = KBIConfig(
     b0=4,
     i0=2,
     round_mode='RND',
-    overflow_mode='SAT',
+    overflow_mode='SAT_SYM',
     bc=MinMax(0, 12),
     ic=None,
-    br=L1(1e-6),
+    br=MonoL1(1e-6),
     ir=None,
     i_decay_speed=0.01,
     homogeneous_axis=(0,),
@@ -122,11 +121,11 @@ kif_weight_default = KIFConfig(
     i0=4,
     f0=2,
     round_mode='RND',
-    overflow_mode='SAT',
+    overflow_mode='SAT_SYM',
     ic=MinMax(-12, 12),
-    ir=L1(1e-6),
+    ir=MonoL1(1e-6),
     fc=MinMax(-12, 12),
-    fr=L1(1e-6),
+    fr=MonoL1(1e-6),
     i_decay_speed=float('inf'),
     homogeneous_axis=(),
     heterogeneous_axis=None,
@@ -139,11 +138,11 @@ kif_bias_default = KIFConfig(
     i0=4,
     f0=2,
     round_mode='RND',
-    overflow_mode='SAT',
+    overflow_mode='SAT_SYM',
     ic=MinMax(-12, 12),
-    ir=L1(1e-6),
+    ir=MonoL1(1e-6),
     fc=MinMax(-12, 12),
-    fr=L1(1e-6),
+    fr=MonoL1(1e-6),
     i_decay_speed=float('inf'),
     homogeneous_axis=(),
     heterogeneous_axis=None,
@@ -156,11 +155,11 @@ kif_input_default = KIFConfig(
     i0=4,
     f0=2,
     round_mode='RND',
-    overflow_mode='SAT',
+    overflow_mode='SAT_SYM',
     ic=MinMax(-12, 12),
-    ir=L1(1e-6),
+    ir=MonoL1(1e-6),
     fc=MinMax(-12, 12),
-    fr=L1(1e-6),
+    fr=MonoL1(1e-6),
     i_decay_speed=0.01,
     homogeneous_axis=(0,),
     heterogeneous_axis=None,
@@ -170,13 +169,13 @@ kif_input_default = KIFConfig(
 
 float_weight_default = FloatConfig(
     m0=2,
-    e0=2,
+    e0=4,
     e00=0,
     mc=MinMax(-1, 8),
     ec=MinMax(0, 4),
     e0c=MinMax(-16, 16),
-    mr=L1(1e-6),
-    er=L1(1e-6),
+    mr=MonoL1(1e-6),
+    er=MonoL1(1e-6),
     e0r=None,
     homogeneous_axis=(),
     heterogeneous_axis=None,
@@ -186,13 +185,13 @@ float_weight_default = FloatConfig(
 
 float_bias_default = FloatConfig(
     m0=2,
-    e0=2,
+    e0=4,
     e00=0,
     mc=MinMax(-1, 8),
     ec=MinMax(0, 4),
     e0c=MinMax(-16, 16),
-    mr=L1(1e-6),
-    er=L1(1e-6),
+    mr=MonoL1(1e-6),
+    er=MonoL1(1e-6),
     e0r=None,
     homogeneous_axis=(),
     heterogeneous_axis=None,
@@ -202,13 +201,13 @@ float_bias_default = FloatConfig(
 
 float_input_default = FloatConfig(
     m0=2,
-    e0=2,
+    e0=4,
     e00=0,
     mc=MinMax(-1, 8),
     ec=MinMax(0, 4),
     e0c=MinMax(-16, 16),
-    mr=L1(1e-6),
-    er=L1(1e-6),
+    mr=MonoL1(1e-6),
+    er=MonoL1(1e-6),
     e0r=None,
     homogeneous_axis=(0,),
     heterogeneous_axis=None,
@@ -410,11 +409,19 @@ class QuantizerConfig(Mapping):
         """
 
         place = place.lower()
-        assert place in ('weight', 'input', 'bias', 'all'), f"Invalid place: {place}"
+        assert place in ('weight', 'input', 'bias'), f"Invalid place: {place}"
+        self.place = place
 
         q_type = q_type.lower()
         if q_type == 'default':
             q_type = default_q_type[place]
+        self.q_type = q_type
+
+        if q_type == 'dummy':  # Special case for dummy quantizer
+            self.config = {}
+
+            return
+
         assert q_type in ('kbi', 'kif', 'float'), f"Invalid quantizer type: {q_type}"
 
         assert kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None, \
@@ -436,9 +443,6 @@ class QuantizerConfig(Mapping):
                 self.config[k] = v
 
         self.kwargs = kwargs
-        self.q_type = q_type
-        self.place = place
-        self._tmp_storage = {}
 
     def __getitem__(self, key):
         return self.config[key]

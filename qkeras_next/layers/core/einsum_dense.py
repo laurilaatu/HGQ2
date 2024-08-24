@@ -79,17 +79,20 @@ class QEinsumDense(QLayerBase, EinsumDense):
             x = self.activation(x)
 
         if self.enable_ebops:
-            shape = tuple(ops.shape(inputs))
-            bw_inp = self.iq.bits_((1,) + shape[1:])
-            bw_ker = self.kq.bits_(ops.shape(self.kernel))
-            ebops = ops.sum(ops.einsum(self.equation, bw_inp, bw_ker))
-            if self.bq is not None:
-                bw_bias = self.bq.bits_(bw_inp)
-                ebops = ebops + ops.sum(bw_bias)  # type: ignore
+            self._compute_ebops(ops.shape(inputs))
 
-            self._ebops.assign(ops.cast(ebops, self._ebops.dtype))
-            self.add_loss(self.beta * ebops)
         return x
+
+    def _compute_ebops(self, shape):
+        bw_inp = self.iq.bits_((1,) + shape[1:])
+        bw_ker = self.kq.bits_(ops.shape(self.kernel))
+        ebops = ops.sum(ops.einsum(self.equation, bw_inp, bw_ker))
+        if self.bq is not None:
+            bw_bias = self.bq.bits_(ops.shape(self.bias))
+            ebops = ebops + ops.sum(bw_bias)  # type: ignore
+
+        self._ebops.assign(ops.cast(ebops, self._ebops.dtype))  # type: ignore
+        self.add_loss(self.beta * ebops)
 
     def get_config(self):
         config = super().get_config()

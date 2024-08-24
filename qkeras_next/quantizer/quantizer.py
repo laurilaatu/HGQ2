@@ -5,7 +5,8 @@ from keras.api.layers import Layer
 from keras.api.saving import register_keras_serializable
 
 from ..utils.config.quantizer import QuantizerConfig, all_quantizer_keys
-from .fixed_point_quantizer import FixedPointQuantizerKBI, FixedPointQuantizerKIF
+from .base import DummyQuantizer
+from .fixed_point_quantizer import FixedPointQuantizerBase, FixedPointQuantizerKBI, FixedPointQuantizerKIF
 from .float_point_quantizer import FloatPointQuantizer
 
 
@@ -26,14 +27,17 @@ class Quantizer(Layer):
         self.supports_masking = True
         self.config, kwargs = self.get_quantizer_config_kwargs(*args, **kwargs)
         super().__init__(**kwargs)
-        if self.config.q_type == 'float':
-            self.quantizer = FloatPointQuantizer(**self.config)
-        elif self.config.q_type == 'kif':
-            self.quantizer = FixedPointQuantizerKIF(**self.config)
-        elif self.config.q_type == 'kbi':
-            self.quantizer = FixedPointQuantizerKBI(**self.config)
-        else:
-            raise ValueError(f"Unknown quantizer type: {self.config.q_type}")
+        match self.config.q_type:
+            case 'float':
+                self.quantizer = FloatPointQuantizer(**self.config)
+            case 'kif':
+                self.quantizer = FixedPointQuantizerKIF(**self.config)
+            case 'kbi':
+                self.quantizer = FixedPointQuantizerKBI(**self.config)
+            case 'dummy':
+                self.quantizer = DummyQuantizer()
+            case _:
+                raise ValueError(f"Unknown quantizer type: {self.config.q_type}")
 
     def build(self, input_shape):
         self.quantizer.build(input_shape)

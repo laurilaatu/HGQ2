@@ -44,21 +44,13 @@ class TrainableQuantizerBase(Layer):
     """Abstract base class for all quantizers."""
 
     def __init__(self, **kwargs):
-        homogeneous_axis = kwargs.pop("homogeneous_axis", None) or kwargs.pop("skip_axis", ())
-        heterogeneous_axis = kwargs.pop("heterogeneous_axis", None) or kwargs.pop("quantize_axis", None)
+        homogeneous_axis = kwargs.pop("homogeneous_axis", ())
+        heterogeneous_axis = kwargs.pop("heterogeneous_axis", None)
         bw_mapper: BitwidthMapperBase = kwargs.pop("bw_mapper", None) or DefaultBitwidthMapper(heterogeneous_axis, homogeneous_axis)
         self.bw_mapper = bw_mapper
         self._seed = kwargs.pop("seed", int(np.random.randint(0, 2**32)))
         super().__init__(**kwargs)
         self.supports_masking = True
-
-    @property
-    def scale(self):
-        return 1.
-
-    @property
-    def zero_point(self):
-        return 0.
 
     def call(self, inputs, training=None):
         ...
@@ -67,10 +59,7 @@ class TrainableQuantizerBase(Layer):
         ...
 
     def quantize(self, mode):
-        raise ValueError("Quantize method is built-in for keras v3. To avoid name conflicts, please use stateless_quantizer_call method instead.")
-
-    def stateless_quantizer_call(self, *args, **kwargs):
-        return self.stateless_quantizer(*args, **kwargs)
+        raise ValueError("Quantize method is built-in for keras v3. This method is disabled in this package.")
 
     def compute_output_shape(self, input_shape):
         return input_shape
@@ -78,6 +67,11 @@ class TrainableQuantizerBase(Layer):
     @property
     def bits(self):
         raise NotImplementedError
+
+
+class DummyQuantizer(TrainableQuantizerBase):
+    def call(self, inputs, training=None):
+        return inputs
 
 
 class DefaultBitwidthMapper(BitwidthMapperBase):

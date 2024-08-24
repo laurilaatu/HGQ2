@@ -22,7 +22,9 @@ class QLayerBase(QLayerAbsBase):
     ):
         iq_conf = iq_conf or QuantizerConfig('default', 'input')
         super().__init__(**kwargs)
-        self._enable_ebops = enable_ebops or global_config['enable_ebops']
+        if enable_ebops is None:
+            enable_ebops = global_config['enable_ebops']
+        self._enable_ebops = enable_ebops
         beta0 = beta0 or global_config['beta0']
         self._beta0 = Constant(float(beta0)) if not isinstance(beta0, Initializer) else beta0
         self._iq = Quantizer(iq_conf, name=f"{self.name}_iq")
@@ -33,10 +35,14 @@ class QLayerBase(QLayerAbsBase):
 
     @property
     def beta(self):
+        if self._beta is None:
+            return backend.convert_to_tensor(0)
         return backend.convert_to_tensor(self._beta)
 
     @property
     def ebops(self):
+        if self._ebops is None:
+            return backend.convert_to_tensor(0)
         return backend.convert_to_tensor(self._ebops)
 
     @property
@@ -60,6 +66,9 @@ class QLayerBase(QLayerAbsBase):
                 trainable=False,
                 dtype='uint32'
             )
+        else:
+            self._beta = None
+            self._ebops = None
 
     def get_config(self):
         config = super().get_config()

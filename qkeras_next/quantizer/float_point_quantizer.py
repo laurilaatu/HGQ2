@@ -80,7 +80,7 @@ class FloatPointQuantizer(TrainableQuantizerBase):
 
     @property
     def bits(self):
-        return self.m + self.e  # type: ignore
+        return self.m + self.e + 1.  # type: ignore
 
     def call(self, inputs, training=None):
         m = self.bw_mapper.bw_to_x(self.m, ops.shape(inputs))
