@@ -141,6 +141,17 @@ class QBaseConv(QLayerBase, BaseConv):
         config = deserialize_keras_object(config)
         return cls(**config)
 
+    @property
+    def qkernel(self):
+        return self.kq(self._kernel)
+
+    @property
+    def qbias(self):
+        if self.bias is None:
+            return None
+        assert self.bq is not None
+        return self.bq(self.bias)
+
 
 @register_keras_serializable(package='qkeras_next')
 class QConv1D(QBaseConv):

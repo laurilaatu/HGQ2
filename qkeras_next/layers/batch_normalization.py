@@ -102,7 +102,8 @@ class QBatchNormalization(QLayerBase, BatchNormalization):
         shape[self.axis] = input_shape[self.axis]
         self._shape = tuple(shape)
 
-    def qscale_and_qoffset(self):
+    @property
+    def qscaler_and_qoffset(self):
 
         mean = ops.cast(self.moving_mean, self.dtype)
         variance = ops.cast(self.moving_variance, self.dtype)
@@ -122,13 +123,13 @@ class QBatchNormalization(QLayerBase, BatchNormalization):
         scale = bn_gamma / ops.sqrt(variance + self.epsilon)  # type: ignore
         offset = bn_beta - mean * scale
 
-        qscale = self.kq(scale, training=False)
+        qscaler = self.kq(scale, training=False)
         qoffset = self.bq(offset, training=False)
 
-        qscale = ops.reshape(qscale, shape)
+        qscaler = ops.reshape(qscaler, shape)
         qoffset = ops.reshape(qoffset, shape)
 
-        return qscale, qoffset
+        return qscaler, qoffset
 
     def call(self, inputs, training=None, mask=None):
         # Check if the mask has one less dimension than the inputs.
@@ -181,7 +182,7 @@ class QBatchNormalization(QLayerBase, BatchNormalization):
             qscale = ops.reshape(qscale, shape)
             qoffset = ops.reshape(qoffset, shape)
         else:
-            qscale, qoffset = self.qscale_and_qoffset()
+            qscale, qoffset = self.qscaler_and_qoffset
 
         outputs = qinputs * qscale + qoffset  # type: ignore
 

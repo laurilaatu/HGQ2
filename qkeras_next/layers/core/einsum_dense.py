@@ -102,6 +102,17 @@ class QEinsumDense(QLayerBase, EinsumDense):
         })
         return config
 
+    @property
+    def qkernel(self):
+        return self.kq(self._kernel)
+
+    @property
+    def qbias(self):
+        if self.bias is None:
+            return None
+        assert self.bq is not None
+        return self.bq(self.bias)
+
     @classmethod
     def from_config(cls, config):
         config = deserialize_keras_object(config)
