@@ -4,9 +4,9 @@ from keras.api.saving import deserialize_keras_object, register_keras_serializab
 from keras.src.layers.convolutional.base_conv import BaseConv
 from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
-from ...quantizer import Quantizer
-from ...utils.config.quantizer import QuantizerConfig
-from .base import QLayerBase
+from ..quantizer import Quantizer
+from ..utils.config.quantizer import QuantizerConfig
+from .core.base import QLayerBase
 
 
 class QBaseConv(QLayerBase, BaseConv):
@@ -107,7 +107,6 @@ class QBaseConv(QLayerBase, BaseConv):
         return outputs
 
     def _compute_ebops(self, shape):
-        shape = tuple(shape)
         bw_inp = self.iq.bits_((1,) + shape[1:])
         bw_ker = self.kq.bits_(ops.shape(self.kernel))
         if self.parallelization_factor < 0:
@@ -124,7 +123,7 @@ class QBaseConv(QLayerBase, BaseConv):
 
         if self.bq is not None:
             bw_bias = self.bq.bits_(ops.shape(self.bias))
-            ebops = ebops + ops.sum(bw_bias)  # type: ignore
+            ebops = ebops + ops.mean(bw_bias) * ops.prod(shape[1:])  # type: ignore
 
         self._ebops.assign(ops.cast(ebops, self._ebops.dtype))  # type: ignore
         self.add_loss(self.beta * ebops)
