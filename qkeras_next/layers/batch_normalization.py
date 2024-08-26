@@ -1,17 +1,14 @@
 from keras.api.layers import BatchNormalization
-from keras.api.saving import serialize_keras_object
-from keras.src import backend, constraints, initializers, ops, regularizers
-from keras.src.api_export import keras_export
+from keras.api.saving import register_keras_serializable, serialize_keras_object
+from keras.src import backend, ops
 from keras.src.backend import standardize_dtype
-from keras.src.backend.config import epsilon
-from keras.src.layers.input_spec import InputSpec
-from keras.src.layers.layer import Layer
 
 from ..quantizer import Quantizer
 from ..utils.config.quantizer import QuantizerConfig
 from .core.base import QLayerBase
 
 
+@register_keras_serializable(package='qkeras_next')
 class QBatchNormalization(QLayerBase, BatchNormalization):
 
     @property
@@ -101,6 +98,10 @@ class QBatchNormalization(QLayerBase, BatchNormalization):
         shape = [1] * len(input_shape)
         shape[self.axis] = input_shape[self.axis]
         self._shape = tuple(shape)
+        self.bn_beta.name = 'bn_beta'
+        self.bn_beta.path = self.bn_beta.path.replace('/beta', '/bn_beta')
+        self.bn_gamma.name = 'bn_gamma'
+        self.bn_gamma.path = self.bn_gamma.path.replace('/gamma', '/bn_gamma')
 
     @property
     def qscaler_and_qoffset(self):

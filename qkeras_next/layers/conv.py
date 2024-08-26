@@ -136,11 +136,6 @@ class QBaseConv(QLayerBase, BaseConv):
         })
         return config
 
-    @classmethod
-    def from_config(cls, config):
-        config = deserialize_keras_object(config)
-        return cls(**config)
-
     @property
     def qkernel(self):
         return self.kq(self._kernel)

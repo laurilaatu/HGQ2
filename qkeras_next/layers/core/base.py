@@ -76,13 +76,13 @@ class QLayerBase(QLayerAbsBase):
         config['iq_conf'] = serialize_keras_object(self.iq.config)
         return config
 
-    @classmethod
-    def from_config(cls, config):
-        config['iq_conf'] = deserialize_keras_object(config['iq_conf'])
-        return super().from_config(config)
-
     def enable_lora(self, *args, **kwargs):
         raise NotImplementedError("LoRA is not supported in qkeras_next.")
+
+    @classmethod
+    def from_config(cls, config):
+        config = deserialize_keras_object(config)
+        return super().from_config(config)
 
 
 class QLayerBaseMultiInputs(QLayerAbsBase):
