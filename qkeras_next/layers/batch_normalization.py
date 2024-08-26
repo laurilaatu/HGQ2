@@ -103,9 +103,7 @@ class QBatchNormalization(QLayerBase, BatchNormalization):
         self.bn_gamma.name = 'bn_gamma'
         self.bn_gamma.path = self.bn_gamma.path.replace('/gamma', '/bn_gamma')
 
-    @property
-    def qscaler_and_qoffset(self):
-
+    def _scaler_and_offset(self):
         mean = ops.cast(self.moving_mean, self.dtype)
         variance = ops.cast(self.moving_variance, self.dtype)
 
@@ -124,13 +122,40 @@ class QBatchNormalization(QLayerBase, BatchNormalization):
         scale = bn_gamma / ops.sqrt(variance + self.epsilon)  # type: ignore
         offset = bn_beta - mean * scale
 
-        qscaler = self.kq(scale, training=False)
-        qoffset = self.bq(offset, training=False)
+        return scale, offset
 
-        qscaler = ops.reshape(qscaler, shape)
-        qoffset = ops.reshape(qoffset, shape)
+    @property
+    def qscaler_and_qoffset(self):
+        scale, offset = self._scaler_and_offset()
+        return self.kq(scale, training=False), self.bq(offset, training=False)
 
-        return qscaler, qoffset
+    def _scaler_and_offset_train(self, qinputs, mask):
+
+        moving_mean = ops.cast(self.moving_mean, ops.dtype(qinputs))
+        moving_variance = ops.cast(self.moving_variance, ops.dtype(qinputs))
+
+        mean, variance = self._moments(qinputs, mask)  # type: ignore
+        self.moving_mean.assign(
+            moving_mean * self.momentum + mean * (1.0 - self.momentum)  # type: ignore
+        )
+        self.moving_variance.assign(
+            moving_variance * self.momentum + variance * (1.0 - self.momentum)  # type: ignore
+        )
+
+        if self.scale:
+            bn_gamma = ops.cast(self.bn_gamma, ops.dtype(qinputs))
+        else:
+            bn_gamma = 1
+
+        if self.center:
+            bn_beta = ops.cast(self.bn_beta, ops.dtype(qinputs))
+        else:
+            bn_beta = 1
+
+        scale = bn_gamma / ops.sqrt(variance + self.epsilon)  # type: ignore
+        offset = bn_beta - mean * scale
+
+        return scale, offset
 
     def call(self, inputs, training=None, mask=None):
         # Check if the mask has one less dimension than the inputs.
@@ -151,39 +176,18 @@ class QBatchNormalization(QLayerBase, BatchNormalization):
 
         qinputs = self.iq(inputs, training=training)
 
-        moving_mean = ops.cast(self.moving_mean, ops.dtype(qinputs))
-        moving_variance = ops.cast(self.moving_variance, ops.dtype(qinputs))
-        if training and self.trainable:
-            mean, variance = self._moments(qinputs, mask)  # type: ignore
-            self.moving_mean.assign(
-                moving_mean * self.momentum + mean * (1.0 - self.momentum)  # type: ignore
-            )
-            self.moving_variance.assign(
-                moving_variance * self.momentum + variance * (1.0 - self.momentum)  # type: ignore
-            )
-
-            shape = self._shape
-
-            if self.scale:
-                bn_gamma = ops.cast(self.bn_gamma, ops.dtype(qinputs))
-            else:
-                bn_gamma = 1
-
-            if self.center:
-                bn_beta = ops.cast(self.bn_beta, ops.dtype(qinputs))
-            else:
-                bn_beta = 1
-
-            scale = bn_gamma / ops.sqrt(variance + self.epsilon)  # type: ignore
-            offset = bn_beta - mean * scale
-
-            qscale = self.kq(scale, training=True)
-            qoffset = self.bq(offset, training=True)
-
-            qscale = ops.reshape(qscale, shape)
-            qoffset = ops.reshape(qoffset, shape)
+        if training:
+            scale, offset = self._scaler_and_offset_train(qinputs, mask)
         else:
-            qscale, qoffset = self.qscaler_and_qoffset
+            scale, offset = self._scaler_and_offset()
+
+        shape = self._shape
+
+        qscale = self.kq(scale, training=True)
+        qoffset = self.bq(offset, training=True)
+
+        qscale = ops.reshape(qscale, shape)
+        qoffset = ops.reshape(qoffset, shape)
 
         outputs = qinputs * qscale + qoffset  # type: ignore
 
