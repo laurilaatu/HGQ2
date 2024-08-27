@@ -78,7 +78,7 @@ class QEinsumDense(QLayerBase, EinsumDense):
         if self.activation is not None:
             x = self.activation(x)
 
-        if self.enable_ebops:
+        if self.enable_ebops and training:
             self._compute_ebops(ops.shape(inputs))
 
         return x

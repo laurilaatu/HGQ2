@@ -193,7 +193,7 @@ class QBatchNormalization(QLayerBase, BatchNormalization):
 
         if input_dtype in ("float16", "bfloat16"):
             outputs = ops.cast(outputs, input_dtype)
-        if self.enable_ebops:
+        if self.enable_ebops and training:
             self._compute_ebops(ops.shape(inputs))
         return outputs
 

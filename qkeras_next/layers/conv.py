@@ -231,7 +231,7 @@ class QConv1D(QBaseConv):
                 bias_shape = (1, self.filters) + (1,) * self.rank
             bias = ops.reshape(self.bias, bias_shape)
             outputs += bias  # type: ignore
-        if self.enable_ebops:
+        if self.enable_ebops and training:
             self._compute_ebops(ops.shape(inputs))
 
         if self.activation is not None:
