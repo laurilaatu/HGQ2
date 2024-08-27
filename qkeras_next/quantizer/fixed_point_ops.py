@@ -162,10 +162,17 @@ def get_fixed_quantizer(round_mode: str = 'TRN', overflow_mode: str = 'WRAP') ->
             f: number of fractional bits
             training: training mode
         """
-        i = ops.maximum(i, -f)  # type: ignore
-        xq = round_fn_scaled(x, f, training, seed_gen)
-        xq = sat_fn(xq, k, i, f, training)
-        return xq
+        i = ops.stop_gradient(ops.maximum(i, -f)) + (i - ops.stop_gradient(i))  # type: ignore
+
+        # Workaround for gradient computation around 0.
+        # When have small rounded to boundary, grad on f presents despite the value will be clipped off anyway.
+        # Thus have saturation before rounding, except for wrap mode, which doesn't round during training.
+        if overflow_mode != 'WRAP':
+            x = sat_fn(x, k, i, f, training)
+        x = round_fn_scaled(x, f, training, seed_gen)
+        if overflow_mode == 'WRAP':
+            x = sat_fn(x, k, i, f, training)
+        return x
     return quantizer
 
 
