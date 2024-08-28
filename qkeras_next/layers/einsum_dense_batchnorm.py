@@ -159,10 +159,6 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
             autocast=False,
         )
 
-    @property
-    def kernel(self):
-        return self._kernel
-
     def get_fused_qkernel_and_qbias(self, training, mean, var):
         assert self.bias is not None
         assert self.bq is not None

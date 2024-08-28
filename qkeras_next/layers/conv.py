@@ -79,10 +79,6 @@ class QBaseConv(QLayerBase, BaseConv):
             assert self.bq is not None
             self.bq.build(ops.shape(self.bias))
 
-    @property
-    def kernel(self):
-        return self._kernel
-
     def call(self, inputs, training=None):
 
         qinputs = self.iq(inputs, training=training)
