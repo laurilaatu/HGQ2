@@ -5,6 +5,7 @@ from keras.api.constraints import Constraint
 from keras.api.initializers import Constant, Initializer
 from keras.api.regularizers import Regularizer
 from keras.src import backend
+from keras.src.backend.config import epsilon
 
 from ..utils.constraints import MinMax
 from .base import TrainableQuantizerBase, numbers
@@ -12,7 +13,7 @@ from .fixed_point_ops import get_fixed_quantizer, round_conv
 
 
 def minimal_i_given_xb(x, b, symmetric=False):
-    eps = 1e-6
+    eps = epsilon()
     if symmetric:
         return ops.ceil(ops.log2(ops.abs(x) / (2**-b + eps) + eps))
     i_pos = ops.ceil(ops.log2(x / (1 - 2**-b + eps) + eps))
@@ -21,7 +22,7 @@ def minimal_i_given_xb(x, b, symmetric=False):
 
 
 def minimal_i_given_xf(x, f, symmetric=False):
-    eps = 1e-6
+    eps = epsilon()
     if symmetric:
         return ops.ceil(ops.log2(ops.abs(x) + 2**-f))
     i_pos = ops.ceil(ops.log2(x + 2**-f))
@@ -310,7 +311,7 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
         return minimal_i_given_xf(xr, self.f, self.symmetric)
 
     def validate_config(self):
-        assert self.overflow_mode in ('WRAP', 'SAT', 'SYM', 'SYM_SAT')
+        assert self.overflow_mode in ('WRAP', 'SAT', 'SYM', 'SAT_SYM')
         assert self.round_mode in ('TRN', 'RND', 'RND_CONV', 'S_RND', 'S_RND_CONV')
         assert self.f_constraint is None or isinstance(self.f_constraint, Constraint)
         assert self.i_constraint is None or isinstance(self.i_constraint, Constraint)

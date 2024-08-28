@@ -162,6 +162,7 @@ def get_fixed_quantizer(round_mode: str = 'TRN', overflow_mode: str = 'WRAP') ->
             f: number of fractional bits
             training: training mode
         """
+        i = ops.maximum(i, -f)  # type: ignore
         xq = round_fn_scaled(x, f, training, seed_gen)
         xq = sat_fn(xq, k, i, f, training)
         return xq
