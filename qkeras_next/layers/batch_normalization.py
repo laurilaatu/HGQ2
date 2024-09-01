@@ -209,7 +209,8 @@ class QBatchNormalization(QLayerBase, BatchNormalization):
         bw_inp = self.iq.bits_((1,) + shape[1:])
         bw_ker = self.kq.bits_(self._shape)
         bw_bias = self.bq.bits_(self._shape)
-        ebops = ops.sum(bw_inp * bw_ker) + ops.mean(bw_bias) * ops.prod(shape[1:])  # type: ignore
+        size = ops.cast(ops.prod(shape[1:]), self.dtype)
+        ebops = ops.sum(bw_inp * bw_ker) + ops.mean(bw_bias) * size  # type: ignore
 
         self._ebops.assign(ops.cast(ebops, self._ebops.dtype))  # type: ignore
         self.add_loss(self.beta * ebops)

@@ -118,8 +118,9 @@ class QBaseConv(QLayerBase, BaseConv):
             ebops = ops.einsum('c,...co->', bw_inp, bw_ker)
 
         if self.bq is not None:
+            size = ops.cast(ops.prod(shape[1:]), self.dtype)
             bw_bias = self.bq.bits_(ops.shape(self.bias))
-            ebops = ebops + ops.mean(bw_bias) * ops.prod(shape[1:])  # type: ignore
+            ebops = ebops + ops.mean(bw_bias) * size  # type: ignore
 
         self._ebops.assign(ops.cast(ebops, self._ebops.dtype))  # type: ignore
         self.add_loss(self.beta * ebops)

@@ -85,7 +85,8 @@ class QEinsumDense(QLayerBase, EinsumDense):
         ebops = ops.sum(ops.einsum(self.equation, bw_inp, bw_ker))
         if self.bq is not None:
             bw_bias = self.bq.bits_(ops.shape(self.bias))
-            ebops = ebops + ops.mean(bw_bias) * ops.prod(shape[1:])  # type: ignore
+            size = ops.cast(ops.prod(shape[1:]), self.dtype)
+            ebops = ebops + ops.mean(bw_bias) * size  # type: ignore
 
         self._ebops.assign(ops.cast(ebops, self._ebops.dtype))  # type: ignore
         self.add_loss(self.beta * ebops)
