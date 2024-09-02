@@ -10,7 +10,7 @@ from keras.api.saving import deserialize_keras_object, register_keras_serializab
 
 from ...quantizer.base import BitwidthMapperBase
 from ...utils.constraints import Min, MinMax
-from .. import numbers
+from ..misc import numbers
 from ..regularizers import MonoL1
 
 default_q_type = {

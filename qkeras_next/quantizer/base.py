@@ -7,7 +7,7 @@ import numpy as np
 from keras import ops
 from keras.src.layers import Layer
 
-from ..utils import numbers
+numbers = int | float | np.integer | np.floating
 
 
 @ops.custom_gradient
