@@ -58,7 +58,7 @@ class TrainableQuantizerBase(Layer):
     def __repr__(self) -> str:
         ...
 
-    def quantize(self, mode):
+    def quantize(self, mode):  # type: ignore
         raise ValueError("Quantize method is built-in for keras v3. This method is disabled in this package.")
 
     def compute_output_shape(self, input_shape):
