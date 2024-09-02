@@ -192,8 +192,8 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
 
         qinputs = self.iq(inputs, training=training)
 
-        kernel = ops.stop_gradient(backend.convert_to_tensor(self.kernel))
-        x = ops.einsum(self.equation, qinputs, kernel)
+        qkernel = self.kq(self.kernel, training=training)
+        x = ops.einsum(self.equation, qinputs, qkernel)
         if training and self.trainable:
             mean, var = ops.moments(
                 x, self._reduction_axes, keepdims=False, synchronized=self.synchronized
