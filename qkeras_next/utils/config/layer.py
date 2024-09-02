@@ -24,5 +24,11 @@ class LayerConfigScope:
         self._override = kwargs
 
     def __enter__(self):
+        self._tmp = global_config.copy()
         for k, v in self._override.items():
             global_config[k] = v
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for k in self._override:
+            del global_config[k]
+        global_config.update(self._tmp)
