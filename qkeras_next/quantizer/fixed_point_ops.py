@@ -18,12 +18,14 @@ def _clip(x, min_value, max_value):
     r = ops.clip(x, min_value, max_value)
 
     def grad(*args, upstream=None):
+        mask1 = x > max_value
+        mask2 = x < min_value
         if upstream is None:
             (upstream,) = args
         dy = upstream
-        dx = ops.where(x == r, dy, 0.)
-        dmax = ops.where(x > max_value, dy, 0.)
-        dmin = ops.where(x < min_value, dy, 0.)
+        dx = ops.where(~(mask1 | mask2), dy, 0.)
+        dmax = ops.where(mask1, dy, 0.)
+        dmin = ops.where(mask2, dy, 0.)
         return dx, dmin, dmax
     return r, grad
 
