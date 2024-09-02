@@ -21,7 +21,7 @@ default_q_type = {
 
 
 class QuantizerConfigBase(TypedDict):
-    homogeneous_axis: Sequence[int]
+    homogeneous_axis: Sequence[int] | None
     heterogeneous_axis: Sequence[int] | None
     bw_mapper: BitwidthMapperBase | None
     trainable: bool
@@ -215,7 +215,7 @@ float_input_default = FloatConfig(
     trainable=True,
 )
 
-default_configs: dict[tuple[str, str], QuantizerConfigBase] = {
+default_configs: dict[tuple[str, str], KIFConfig | KBIConfig | FloatConfig] = {
     ('kbi', 'weight'): kbi_weight_default,
     ('kbi', 'bias'): kbi_bias_default,
     ('kbi', 'input'): kbi_input_default,
