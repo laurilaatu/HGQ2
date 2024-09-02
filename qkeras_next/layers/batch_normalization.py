@@ -20,7 +20,7 @@ class QBatchNormalization(QLayerBase, BatchNormalization):
     @beta.setter
     def beta(self, value):
         """Workaround for setting the batch normalization beta during building."""
-        if not hasattr(self, '_building'):
+        if self.built:
             raise AttributeError("Cannot set beta after build.")
         self.bn_beta = value
 
@@ -31,7 +31,7 @@ class QBatchNormalization(QLayerBase, BatchNormalization):
     @gamma.setter
     def gamma(self, value):
         """Workaround for setting the batch normalization gamma during building."""
-        if not hasattr(self, '_building'):
+        if self.built:
             raise AttributeError("Cannot set gamma after build.")
         self.bn_gamma = value
 
@@ -88,13 +88,11 @@ class QBatchNormalization(QLayerBase, BatchNormalization):
         return self._bq
 
     def build(self, input_shape):
-        self._building = True
         super().build(input_shape)
         if self.bq is not None:
             self.bq.build(ops.shape(self.bn_beta))
         if self.kq is not None:
             self.kq.build(ops.shape(self.bn_gamma))
-        del self._building
         shape = [1] * len(input_shape)
         shape[self.axis] = input_shape[self.axis]
         self._shape = tuple(shape)
