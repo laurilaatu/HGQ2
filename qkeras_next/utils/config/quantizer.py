@@ -15,8 +15,9 @@ from ..regularizers import MonoL1
 
 default_q_type = {
     'weight': 'kbi',
-    'input': 'kbi',
+    'input': 'kif',
     'bias': 'kbi',
+    'table': 'kbi',
 }
 
 
@@ -82,22 +83,6 @@ kbi_weight_default = KBIConfig(
     trainable=True,
 )
 
-kbi_bias_default = KBIConfig(
-    k0=True,
-    b0=4,
-    i0=2,
-    round_mode='RND',
-    overflow_mode='WRAP',
-    bc=MinMax(0, 12),
-    ic=None,
-    br=MonoL1(1e-6),
-    ir=None,
-    i_decay_speed=float('inf'),
-    homogeneous_axis=(),
-    heterogeneous_axis=None,
-    bw_mapper=None,
-    trainable=True,
-)
 
 kbi_input_default = KBIConfig(
     k0=True,
@@ -133,22 +118,6 @@ kif_weight_default = KIFConfig(
     trainable=True,
 )
 
-kif_bias_default = KIFConfig(
-    k0=True,
-    i0=4,
-    f0=2,
-    round_mode='RND',
-    overflow_mode='SAT_SYM',
-    ic=MinMax(-12, 12),
-    ir=MonoL1(1e-6),
-    fc=MinMax(-12, 12),
-    fr=MonoL1(1e-6),
-    i_decay_speed=float('inf'),
-    homogeneous_axis=(),
-    heterogeneous_axis=None,
-    bw_mapper=None,
-    trainable=True,
-)
 
 kif_input_default = KIFConfig(
     k0=True,
@@ -183,21 +152,6 @@ float_weight_default = FloatConfig(
     trainable=True,
 )
 
-float_bias_default = FloatConfig(
-    m0=2,
-    e0=4,
-    e00=0,
-    mc=MinMax(-1, 8),
-    ec=MinMax(0, 4),
-    e0c=MinMax(-16, 16),
-    mr=MonoL1(1e-6),
-    er=MonoL1(1e-6),
-    e0r=None,
-    homogeneous_axis=(),
-    heterogeneous_axis=None,
-    bw_mapper=None,
-    trainable=True,
-)
 
 float_input_default = FloatConfig(
     m0=2,
@@ -217,19 +171,30 @@ float_input_default = FloatConfig(
 
 default_configs: dict[tuple[str, str], KIFConfig | KBIConfig | FloatConfig] = {
     ('kbi', 'weight'): kbi_weight_default,
-    ('kbi', 'bias'): kbi_bias_default,
+    ('kbi', 'bias'): kbi_weight_default.copy(),
+    ('kbi', 'table'): kbi_weight_default.copy(),
     ('kbi', 'input'): kbi_input_default,
 
     ('kif', 'weight'): kif_weight_default,
-    ('kif', 'bias'): kif_bias_default,
+    ('kif', 'bias'): kif_weight_default.copy(),
+    ('kif', 'table'): kif_weight_default.copy(),
     ('kif', 'input'): kif_input_default,
 
     ('float', 'weight'): float_weight_default,
-    ('float', 'bias'): float_bias_default,
+    ('float', 'bias'): float_weight_default.copy(),
+    ('float', 'table'): float_weight_default.copy(),
     ('float', 'input'): float_input_default,
 }
 
 all_quantizer_keys = {k for v in default_configs.values() for k in v.keys()} | {'q_type', 'place'}
+
+
+def all_quantizer_types():
+    return {k[0] for k in default_configs.keys()}
+
+
+def all_places():
+    return {k[1] for k in default_configs.keys()}
 
 
 @register_keras_serializable(package='qkeras_next')
@@ -238,7 +203,7 @@ class QuantizerConfig(Mapping):
     @overload
     def __init__(
         self,
-        q_type: str,
+        q_type: str = 'default',
         place: str = 'input',
         *,
         k0: numbers | bool | Initializer = True,
@@ -295,7 +260,7 @@ class QuantizerConfig(Mapping):
     @overload
     def __init__(
         self,
-        q_type: str,
+        q_type: str = 'default',
         place: str = 'input',
         *,
         k0: numbers | bool | Initializer = True,
@@ -349,7 +314,7 @@ class QuantizerConfig(Mapping):
     @overload
     def __init__(
         self,
-        q_type: str,
+        q_type: str = 'default',
         place: str = 'input',
         *,
         m0: numbers | Initializer = 2,
@@ -409,20 +374,18 @@ class QuantizerConfig(Mapping):
         """
 
         place = place.lower()
-        assert place in ('weight', 'input', 'bias'), f"Invalid place: {place}"
-        self.place = place
-
         q_type = q_type.lower()
         if q_type == 'default':
             q_type = default_q_type[place]
+
+        assert (q_type, place) in default_configs, f"Default config for ({q_type}, {place}) not found."
+        self.place = place
         self.q_type = q_type
 
         if q_type == 'dummy':  # Special case for dummy quantizer
             self.config = {}
 
             return
-
-        assert q_type in ('kbi', 'kif', 'float'), f"Invalid quantizer type: {q_type}"
 
         assert kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None, \
             "homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them."
@@ -466,23 +429,32 @@ class QuantizerConfig(Mapping):
 
 
 class QuantizerConfigScope:
-    def __init__(self, q_type: str = 'all', place: str = 'all', default_q_type=None, **kwargs):
+    def __init__(self, q_type: str | Sequence[str] | set[str] = 'all', place: str | Sequence[str] | set[str] = 'all', default_q_type=None, **kwargs):
         """Override default quantizer config within a context.
 
         Parameters
         ----------
         q_type : str
-            The type of the quantizers. One of 'kbi', 'kif', 'float', 'all'
+            The type of the quantizers.
         place : str
-            The location of the quantizers. One of 'weight', 'input', 'bias', and 'all'
+            The location of the quantizers.
         default_q_type : str, optional
             The default quantizer type to be used. If None, the default quantizer type is not changed. One of 'kbi', 'kif', 'float', by default None
         """
 
-        q_type = q_type.lower()
-        place = place.lower()
-        assert q_type in ('kbi', 'kif', 'float', 'all')
-        assert place in ('weight', 'input', 'all')
+        if q_type == 'all':
+            q_type = all_quantizer_types()
+        if place == 'all':
+            place = all_places()
+
+        q_type = (q_type,) if isinstance(q_type, str) else q_type
+        place = (place,) if isinstance(place, str) else place
+        q_type = {_q_type.lower() for _q_type in q_type}
+        place = {_place.lower() for _place in place}
+
+        for _q_type in q_type:
+            for _place in place:
+                assert (_q_type, _place) in default_configs, f"Default config for ({_q_type}, {_place}) not found."
 
         assert kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None, \
             "homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them."
@@ -505,41 +477,31 @@ class QuantizerConfigScope:
             if k not in all_quantizer_keys:
                 raise ValueError(f"{k} is not a valid parameter for any known quantizer configs.")
 
-        self.q_type = q_type
-        self.place = place
+        self.q_types = q_type
+        self.places = place
         self.kwargs = kwargs
         self.default_q_type = default_q_type
         self._tmp_storage = {}
+        self.original_default_q_type = None
 
     def __enter__(self):
         for (q_type, place), default_conf in default_configs.items():
-            if (self.q_type == q_type or self.q_type == 'all') and \
-               (self.place == place or self.place == 'all'):
+            if q_type in self.q_types and place in self.places:
                 self._tmp_storage[(q_type, place)] = default_conf.copy()
                 for k, v in self.kwargs.items():
                     if k in default_conf:
                         default_conf[k] = v
         if self.default_q_type is not None:
-            if self.place in ('weight', 'all'):
-                self._tmp_storage['weight_default_q_type'] = default_q_type['weight']
-                default_q_type['weight'] = self.default_q_type
-            if self.place in ('input', 'all'):
-                self._tmp_storage['input_default_q_type'] = default_q_type['input']
-                default_q_type['input'] = self.default_q_type
-            if self.place in ('bias', 'all'):
-                self._tmp_storage['bias_default_q_type'] = default_q_type['bias']
-                default_q_type['bias'] = self.default_q_type
+            self.original_default_q_type = default_q_type.copy()
+            for place in self.places:
+                default_q_type[place] = self.default_q_type
 
     def __exit__(self, exc_type, exc_value, traceback):
-        q_type = self._tmp_storage.pop('weight_default_q_type', None)
-        if q_type is not None:
-            default_q_type['weight'] = q_type
-        q_type = self._tmp_storage.pop('input_default_q_type', None)
-        if q_type is not None:
-            default_q_type['input'] = q_type
-        q_type = self._tmp_storage.pop('bias_default_q_type', None)
-        if q_type is not None:
-            default_q_type['bias'] = q_type
+        if self.original_default_q_type is not None:
+            default_q_type.clear()
+            default_q_type.update(self.original_default_q_type)
+            self.original_default_q_type = None
+
         for (q_type, place) in self._tmp_storage:
             default_configs[(q_type, place)].update(self._tmp_storage[(q_type, place)])
         self._tmp_storage.clear()

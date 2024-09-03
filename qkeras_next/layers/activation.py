@@ -34,7 +34,7 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         super().__init__(activation=activation, iq_conf=iq_conf, **kwargs)
 
         if enable_out_quantizer:
-            oq_conf = oq_conf or QuantizerConfig('default', 'input')
+            oq_conf = oq_conf or QuantizerConfig('default', 'table')
             if override_oq_k0_to_0:
                 if 'k0' in oq_conf.config:
                     oq_conf.config['k0'] = False
