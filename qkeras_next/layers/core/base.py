@@ -89,8 +89,6 @@ class QLayerBaseSingleInput(QLayerBase):
 
     @property
     def iq(self):
-        if not self.built:
-            raise AttributeError("iq is not available before build.")
         return self._iq
 
     def build(self, input_shape):
