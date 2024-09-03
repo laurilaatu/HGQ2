@@ -9,6 +9,7 @@ class PBar(Callback):
         self.disable_ebops = disable_ebops
 
     def on_epoch_begin(self, epoch, logs=None):
+        assert isinstance(self.params, dict)
         if self.pbar is None:
             self.pbar = tqdm(total=self.params['epochs'], unit='epoch')
 
