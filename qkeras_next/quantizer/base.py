@@ -9,6 +9,15 @@ from keras.src.layers import Layer
 
 numbers = int | float | np.integer | np.floating
 
+from keras.src import backend
+
+
+def _large_number(dtype):
+    """Return a Large negative number based on dtype."""
+    if backend.standardize_dtype(dtype) == "float16":
+        return 3e4
+    return 1e9
+
 
 @ops.custom_gradient
 def round_conv(x):
@@ -82,10 +91,38 @@ class TrainableQuantizerBase(Layer):
     def bits(self):
         raise NotImplementedError
 
+    @property
+    def min(self):
+        raise NotImplementedError
+
+    @property
+    def max(self):
+        raise NotImplementedError
+
+    @property
+    def epsilon(self):
+        raise NotImplementedError
+
 
 class DummyQuantizer(TrainableQuantizerBase):
     def call(self, inputs, training=None):
         return inputs
+
+    @property
+    def bits(self):
+        return 32
+
+    @property
+    def min(self):
+        return -_large_number(self.dtype)
+
+    @property
+    def max(self):
+        return _large_number(self.dtype)
+
+    @property
+    def epsilon(self):
+        return backend.epsilon()
 
 
 class DefaultBitwidthMapper(BitwidthMapperBase):

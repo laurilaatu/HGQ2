@@ -82,6 +82,18 @@ class FloatPointQuantizer(TrainableQuantizerBase):
     def bits(self):
         return self.m + self.e + 1.  # type: ignore
 
+    @property
+    def min(self):
+        return -self.max
+
+    @property
+    def max(self):
+        return 2.**(2**(self.e - 1.) + self.e0 - 1) * (2 - 2.**-self.m)  # type: ignore
+
+    @property
+    def epsilon(self):
+        return 2.**(-2**(self.e - 1) + self.e0 + 1) * (2.**-self.m)  # type: ignore
+
     def call(self, inputs, training=None):
         m = self.bw_mapper.bw_to_x(self.m, ops.shape(inputs))
         e = self.bw_mapper.bw_to_x(self.e, ops.shape(inputs))

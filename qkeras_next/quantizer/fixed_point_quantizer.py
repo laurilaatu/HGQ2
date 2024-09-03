@@ -90,6 +90,21 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
     def bits(self):
         return self.b
 
+    @property
+    def min(self):
+        if self.symmetric:
+            return -self.k * (2.**self.i - 2.**-self.f)
+        else:
+            return -self.k * (2.**self.i)
+
+    @property
+    def max(self):
+        return 2.**self.i - 2.**-self.f
+
+    @property
+    def epsilon(self):
+        return 2.**-self.f
+
     def __repr__(self) -> str:
         if not self.built:
             return f"{self.__class__.__name__}({self.round_mode}, {self.overflow_mode}, name={self.name}, built=False)"

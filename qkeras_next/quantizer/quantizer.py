@@ -76,3 +76,15 @@ class Quantizer(Layer):
     def bits_(self, shape):
         bits = self.bits
         return self.quantizer.bw_mapper.bw_to_x(bits, shape)
+
+    def min_(self, shape):
+        _min = self.quantizer.min
+        return self.quantizer.bw_mapper.bw_to_x(_min, shape)
+
+    def max_(self, shape):
+        _max = self.quantizer.max
+        return self.quantizer.bw_mapper.bw_to_x(_max, shape)
+
+    def epsilon_(self, shape):
+        epsilon = self.quantizer.epsilon
+        return self.quantizer.bw_mapper.bw_to_x(epsilon, shape)
