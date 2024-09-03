@@ -24,6 +24,7 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         oq_conf: QuantizerConfig | None = None,
         enable_out_quantizer=True,
         allow_heterogeneous_table: bool = False,
+        override_oq_k0_to_0: bool = False,
         **kwargs
     ):
         act_name = activation.__name__ if isinstance(activation, Callable) else activation
@@ -31,8 +32,12 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         self.enable_out_quantizer = enable_out_quantizer
 
         super().__init__(activation=activation, iq_conf=iq_conf, **kwargs)
+
         if enable_out_quantizer:
             oq_conf = oq_conf or QuantizerConfig('default', 'input')
+            if override_oq_k0_to_0:
+                if 'k0' in oq_conf.config:
+                    oq_conf.config['k0'] = False
             if not allow_heterogeneous_table:
                 oq_conf.config['homogeneous_axis'] = None
                 oq_conf.config['heterogeneous_axis'] = ()
@@ -43,11 +48,13 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         x = super().call(qinputs)
         if self.enable_out_quantizer:
             x = self.oq(x, training=training)
-            if self.enable_ebops and training:
-                self._compute_ebops(ops.shape(inputs))
+        if self.enable_ebops and training:
+            self._compute_ebops(ops.shape(inputs))
         return x
 
     def _compute_ebops(self, shape):
+        if not self.enable_out_quantizer:
+            return
         _shape = (1,) + shape[1:]
         bw_inp = self.iq.bits_(_shape)
         bw_out = self.oq.bits_(_shape)
@@ -55,6 +62,32 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         ebops = ops.sum((2.**bw_inp) * bw_out) * 0.01  # type: ignore
         self._ebops.assign(ops.cast(ebops, self._ebops.dtype))  # type: ignore
         self.add_loss(self.beta * ebops)
+
+
+class QPositiveUnaryFunctionLUT(QUnaryFunctionLUT):
+    def __init__(
+        self,
+        activation: Callable | str,
+        iq_conf: QuantizerConfig | None = None,
+        oq_conf: QuantizerConfig | None = None,
+        allow_heterogeneous_table: bool = False,
+        **kwargs
+    ):
+        assert kwargs.pop('enable_out_quantizer', True), "enable_out_quantizer must be True for QPositiveUnaryFunctionLUT, if set."
+        super().__init__(
+            activation=activation,
+            iq_conf=iq_conf,
+            oq_conf=oq_conf,
+            enable_out_quantizer=True,
+            allow_heterogeneous_table=allow_heterogeneous_table,
+            override_oq_k0_to_0=True,
+            **kwargs
+        )
+
+    def call(self, inputs, training=None):
+        x = super().call(inputs, training=training)
+        eps = self.oq.epsilon_(ops.shape(inputs))
+        return ops.maximum(x, eps)
 
 
 class QSoftmax(QLayerBaseSingleInput):
@@ -71,8 +104,6 @@ class QSoftmax(QLayerBaseSingleInput):
         super().__init__(iq_conf=iq_conf, **kwargs)  # type: ignore
         self.stable = stable
         self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
-        if stable:
-            self.iq2 = Quantizer(self.iq.config)
 
         def _inv(x):
             return 1.0 / x
@@ -100,16 +131,14 @@ class QSoftmax(QLayerBaseSingleInput):
         super().build(input_shape)
 
     def call(self, inputs, training=None, mask=None):  # type: ignore
-        qinputs = self.iq(inputs, training=training)
-
         if self.stable:
-            qinputs = qinputs - ops.max(qinputs, axis=self.axis, keepdims=True)
-            qinputs = self.iq2(qinputs, training=training)
+            inputs = self.iq(inputs, training=training)
+            inputs = inputs - ops.max(inputs, axis=self.axis, keepdims=True)
 
-        exp_inp = self.exp_table(qinputs, training=training)
+        exp_inp = self.exp_table(inputs, training=training)
 
         if mask is not None:
-            exp_inp = backend.cast(mask, ops.dtype(qinputs)) * exp_inp
+            exp_inp = backend.cast(mask, ops.dtype(inputs)) * exp_inp
 
         sums = ops.sum(exp_inp, axis=self.axis, keepdims=True)
         divisor = self.inv_table(sums, training=training)
