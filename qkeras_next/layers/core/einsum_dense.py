@@ -5,11 +5,11 @@ from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
 from ...quantizer import Quantizer
 from ...utils.config.quantizer import QuantizerConfig
-from .base import QLayerBase
+from .base import QLayerBaseSingleInput
 
 
 @register_keras_serializable(package='qkeras_next')
-class QEinsumDense(QLayerBase, EinsumDense):
+class QEinsumDense(QLayerBaseSingleInput, EinsumDense):
     def __init__(
         self,
         equation,

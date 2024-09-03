@@ -1,3 +1,6 @@
+from abc import ABCMeta
+from collections.abc import Iterable, Sequence
+
 from keras import ops
 from keras.api.initializers import Constant, Initializer
 from keras.api.layers import Concatenate, Layer
@@ -8,30 +11,20 @@ from ...quantizer import Quantizer, QuantizerConfig, numbers
 from ...utils.config.layer import global_config
 
 
-class QLayerAbsBase(Layer):
-    pass
-
-
-class QLayerBase(QLayerAbsBase):
+class QLayerBase(Layer, metaclass=ABCMeta):
     def __init__(
             self,
-            iq_conf: QuantizerConfig | None,
             enable_ebops: bool | None = None,
-            beta0: numbers | None = None,
+            beta0: numbers | None | Initializer = None,
             **kwargs
     ):
-        iq_conf = iq_conf or QuantizerConfig('default', 'input')
         super().__init__(**kwargs)
         if enable_ebops is None:
             enable_ebops = global_config['enable_ebops']
-        self._enable_ebops = enable_ebops
         beta0 = beta0 or global_config['beta0']
-        self._beta0 = Constant(float(beta0)) if not isinstance(beta0, Initializer) else beta0
-        self._iq = Quantizer(iq_conf, name=f"{self.name}_iq")
-
-    @property
-    def iq(self):
-        return self._iq
+        beta0 = Constant(float(beta0)) if not isinstance(beta0, Initializer) else beta0
+        self._enable_ebops = enable_ebops
+        self._beta0 = beta0
 
     @property
     def beta(self):
@@ -49,9 +42,8 @@ class QLayerBase(QLayerAbsBase):
     def enable_ebops(self):
         return self._enable_ebops
 
-    def build(self, input_shape):
-        super().build(input_shape)
-        self.iq.build(input_shape)
+    def build(self, *args, **kwargs):
+        super().build(*args, **kwargs)
         if self.enable_ebops:
             self._beta = self.add_weight(
                 name="beta",
@@ -73,7 +65,7 @@ class QLayerBase(QLayerAbsBase):
     def get_config(self):
         config = super().get_config()
         config['enable_ebops'] = self.enable_ebops
-        config['iq_conf'] = serialize_keras_object(self.iq.config)
+        config['beta0'] = serialize_keras_object(self._beta0)
         return config
 
     def enable_lora(self, *args, **kwargs):
@@ -85,38 +77,75 @@ class QLayerBase(QLayerAbsBase):
         return super().from_config(config)
 
 
-class QLayerBaseMultiInputs(QLayerAbsBase):
-
+class QLayerBaseSingleInput(QLayerBase):
     def __init__(
             self,
-            iq_confs: list[QuantizerConfig] | QuantizerConfig | None = None,
-            enable_ebops: bool | None = None,
-            beta0: numbers | None = None,
+            iq_conf: QuantizerConfig | None,
             **kwargs
     ):
         super().__init__(**kwargs)
-        self.iq_confs = iq_confs
-        self._enable_ebops = enable_ebops or global_config['enable_ebops']
-
-        beta0 = beta0 or global_config['beta0']
-        self._beta0 = Constant(float(beta0)) if not isinstance(beta0, Initializer) else beta0
-
-    def build(self, input_shape):
-        self.beta = self.add_weight(
-            name="beta",
-            shape=(1,),
-            initializer=self._beta0,
-            trainable=False
-        )
-
-        iq_confs = self.iq_confs or Quantizer(place='input')
-        iq_confs = iq_confs if isinstance(self.iq_confs, list) else [iq_confs] * len(input_shape)
-
-        assert len(iq_confs) == len(input_shape), f"If you specify a list of QuantizerConfig, it must have the same length as the number of inputs. Got {len(iq_confs)} QuantizerConfigs for {len(input_shape)} inputs."
-        self.inpqs = [Quantizer(iq_conf) for iq_conf in iq_confs]
-        for inpq, shape in zip(self.inpqs, input_shape):
-            inpq.build(shape)
+        iq_conf = iq_conf or QuantizerConfig('default', 'input')
+        self._iq = Quantizer(iq_conf, name=f"{self.name}_iq")
 
     @property
-    def enable_ebops(self):
-        return self._enable_ebops
+    def iq(self):
+        if not self.built:
+            raise AttributeError("iq is not available before build.")
+        return self._iq
+
+    def build(self, input_shape):
+        super().build(input_shape)
+        self.iq.build(input_shape)
+
+    def get_config(self):
+        config = super().get_config()
+        config['iq_conf'] = serialize_keras_object(self.iq.config)
+        return config
+
+
+class _InvocableTuple(tuple):
+    def __call__(self, x, **kwargs):
+        assert len(self) == len(x), f"number of elements in InvocableList must match number of inputs, got {len(self)} != {len(x)}"
+        return tuple(f(x_, **kwargs) for f, x_ in zip(self, x))
+
+
+class QLayerBaseMultiInputs(QLayerBase):
+    def __init__(
+            self,
+            iq_confs: Sequence[QuantizerConfig] | QuantizerConfig | None,
+            **kwargs
+    ):
+        super().__init__(**kwargs)
+        self._iq_confs = iq_confs if iq_confs is not None else QuantizerConfig('default', 'input')
+
+    @property
+    def iqs(self):
+        if not self.built:
+            raise AttributeError("iqs is not available before build.")
+        return self._iqs
+
+    @property
+    def iq_confs(self):
+        return self._iq_confs
+
+    def build(self, input_shape):
+        super().build(input_shape)
+        n_input = len(input_shape)
+        for _input_shape in input_shape:
+            assert isinstance(_input_shape, Iterable), f"each element of input_shape must be iterable, got {_input_shape}"
+
+        if isinstance(self.iq_confs, QuantizerConfig):
+            self._iq_confs = [self.iq_confs] * n_input
+        assert len(self.iq_confs) == n_input, f"number of iq_confs must match number of inputs, got {len(self._iq_confs)} != {n_input}"
+
+        _iqs = []
+        for i, iq_conf in enumerate(self.iq_confs):
+            iq = Quantizer(iq_conf, name=f"{self.name}_iq_{i}")
+            iq.build(input_shape[i])
+            _iqs.append(iq)
+        self._iqs = _InvocableTuple(_iqs)
+
+    def get_config(self):
+        config = super().get_config()
+        config['iq_confs'] = serialize_keras_object(self.iq_confs)
+        return config

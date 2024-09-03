@@ -5,11 +5,11 @@ from keras.src.backend import standardize_dtype
 
 from ..quantizer import Quantizer
 from ..utils.config.quantizer import QuantizerConfig
-from .core.base import QLayerBase
+from .core.base import QLayerBaseSingleInput
 
 
 @register_keras_serializable(package='qkeras_next')
-class QBatchNormalization(QLayerBase, BatchNormalization):
+class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
 
     @property
     def beta(self):

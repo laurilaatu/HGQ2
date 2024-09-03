@@ -6,10 +6,10 @@ from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
 from ..quantizer import Quantizer
 from ..utils.config.quantizer import QuantizerConfig
-from .core.base import QLayerBase
+from .core.base import QLayerBaseSingleInput
 
 
-class QBaseConv(QLayerBase, BaseConv):
+class QBaseConv(QLayerBaseSingleInput, BaseConv):
     def __init__(
         self,
         rank,

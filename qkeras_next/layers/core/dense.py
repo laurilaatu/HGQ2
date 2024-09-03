@@ -4,11 +4,11 @@ from keras.api.saving import deserialize_keras_object, register_keras_serializab
 
 from ...quantizer import Quantizer
 from ...utils.config.quantizer import QuantizerConfig
-from .base import QLayerBase
+from .base import QLayerBaseSingleInput
 
 
 @register_keras_serializable(package='qkeras_next')
-class QDense(QLayerBase, Dense):
+class QDense(QLayerBaseSingleInput, Dense):
     def __init__(
         self,
         units,
