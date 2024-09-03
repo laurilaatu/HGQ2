@@ -35,6 +35,20 @@ class BitwidthMapperBase:
 
 
 def check_axis(axis: Sequence[int], ndim: int):
+    """Given a list of axis, check that they are valid for a tensor of ndim dimensions. If valid, return the axis as a list of positive integers.
+
+    Parameters
+    ----------
+    axis : Sequence[int]
+        List of axis to check.
+    ndim : int
+        Number of dimensions of the tensor.
+
+    Returns
+    -------
+    axis : list[int]
+        List of positive integers representing the axis.
+    """
     axis = [a if a >= 0 else a + ndim for a in axis]
     assert all(0 <= a < ndim for a in axis), f"Invalid axis {axis} for shape {ndim}."
     return axis
