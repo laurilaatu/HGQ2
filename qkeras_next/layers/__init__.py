@@ -1,4 +1,4 @@
-from .activation import QSoftmax, QUnaryActivation
+from .activation import QSoftmax, QUnaryFunctionLUT
 # from .attention import QAttention
 from .batch_normalization import QBatchNormalization
 from .conv import QConv1D, QConv2D, QConv3D
