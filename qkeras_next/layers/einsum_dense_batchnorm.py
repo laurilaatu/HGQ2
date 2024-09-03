@@ -9,8 +9,6 @@ from ..utils.config.quantizer import QuantizerConfig
 from .batch_normalization import QBatchNormalization
 from .core.einsum_dense import QEinsumDense
 
-QBatchNormalization()
-
 
 @register_keras_serializable(package='qkeras_next')
 class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
