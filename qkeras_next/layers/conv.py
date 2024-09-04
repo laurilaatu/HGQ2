@@ -59,9 +59,9 @@ class QBaseConv(QLayerBaseSingleInput, BaseConv):
         )
 
         kq_conf = kq_conf or QuantizerConfig('default', 'weight')
-        self._kq = Quantizer(kq_conf)
+        self._kq = Quantizer(kq_conf, name=f"{self.name}_kq")
         bq_conf = bq_conf or QuantizerConfig('default', 'bias')
-        self._bq = Quantizer(bq_conf) if use_bias else None
+        self._bq = Quantizer(bq_conf, name=f"{self.name}_bq") if use_bias else None
         self.parallelization_factor = parallelization_factor
 
     @property

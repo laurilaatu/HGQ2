@@ -40,7 +40,7 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
             if not allow_heterogeneous_table:
                 oq_conf.config['homogeneous_axis'] = None
                 oq_conf.config['heterogeneous_axis'] = ()
-            self.oq = Quantizer(oq_conf)
+            self.oq = Quantizer(oq_conf, name=f'{self.name}_oq')
 
     def call(self, inputs, training=None):
         qinputs = self.iq(inputs, training=training)

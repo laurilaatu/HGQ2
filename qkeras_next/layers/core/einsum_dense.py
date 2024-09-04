@@ -44,9 +44,9 @@ class QEinsumDense(QLayerBaseSingleInput, EinsumDense):
         )
 
         kq_conf = kq_conf or QuantizerConfig('default', 'weight')
-        self._kq = Quantizer(kq_conf)
+        self._kq = Quantizer(kq_conf, name=f"{self.name}_kq")
         bq_conf = bq_conf or QuantizerConfig('default', 'bias')
-        self._bq = None if bias_axes is None else Quantizer(bq_conf)
+        self._bq = None if bias_axes is None else Quantizer(bq_conf, name=f"{self.name}_bq")
 
     @property
     def kq(self):

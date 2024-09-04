@@ -75,9 +75,9 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
             **kwargs
         )
         kq_conf = kq_conf or QuantizerConfig('default', 'weight')
-        self._kq = Quantizer(kq_conf)
+        self._kq = Quantizer(kq_conf, name=f"{self.name}_kq")
         bq_conf = bq_conf or QuantizerConfig('default', 'bias')
-        self._bq = Quantizer(bq_conf)
+        self._bq = Quantizer(bq_conf, name=f"{self.name}_bq")
 
     @property
     def kq(self):
@@ -133,10 +133,10 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
         moving_variance = ops.cast(self.moving_variance, ops.dtype(qinputs))
 
         mean, variance = self._moments(qinputs, mask)  # type: ignore
-        self.moving_mean.assign(
+        self.moving_mean.assign(  # type: ignore
             moving_mean * self.momentum + mean * (1.0 - self.momentum)  # type: ignore
         )
-        self.moving_variance.assign(
+        self.moving_variance.assign(  # type: ignore
             moving_variance * self.momentum + variance * (1.0 - self.momentum)  # type: ignore
         )
 
