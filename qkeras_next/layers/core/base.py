@@ -17,16 +17,18 @@ from ...utils.config.layer import global_config
 class QLayerMeta(ABCMeta):
     def __new__(mcs: type, name: str, bases: tuple[type], attrs: dict[str, object], **kwargs):
 
+        cls = super().__new__(mcs, name, bases, attrs, **kwargs)  # type: ignore
+
+        # ====================================================================
         # ============ Compute ebops if _compute_ebops presents ==============
         # ====================================================================
-        original_call: Callable = attrs.get('call', bases[0].call)  # type: ignore
-        _compute_ebops = attrs.get('_compute_ebops', None)
-        if _compute_ebops is None:
-            _compute_ebops = bases[0]._compute_ebops  # type: ignore
+
+        original_call: Callable = cls.call
+        _compute_ebops = cls._compute_ebops
+
         if original_call is not Layer.call and _compute_ebops is not QLayerBase._compute_ebops:
 
             signature = inspect.signature(original_call)
-
             VAR_KEYWORD = inspect.Parameter.VAR_KEYWORD
             KEYWORD_ONLY = inspect.Parameter.KEYWORD_ONLY
             has_training = 'training' in signature.parameters
@@ -47,24 +49,23 @@ class QLayerMeta(ABCMeta):
                 return original_call(self, *args, **kwargs)
             call.__signature__ = new_signature  # type: ignore
 
-            if _compute_ebops is not QLayerBase._compute_ebops:
-                attrs['call'] = call
+            cls.call = call
+
         # ====================================================================
-
-        cls = super().__new__(mcs, name, bases, attrs, **kwargs)  # type: ignore
-
         # =========== Register as Keras serializable if possible =============
-        # ====================================================================
+        # ===================================================================
+
         if cls.get_config is not Layer.get_config:
             original_get_config = cls.get_config
 
+            @wraps(original_get_config)
             def get_config(self):
                 config = original_get_config(self)
                 config = serialize_keras_object(config)
                 return config
+
             cls.get_config = get_config
             cls = register_keras_serializable(package='qkeras_next')(cls)
-        # ====================================================================
 
         return cls
 
