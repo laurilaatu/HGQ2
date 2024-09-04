@@ -6,7 +6,7 @@ from keras.api.utils import PyDataset
 
 
 class Dataset(PyDataset):
-    def __init__(self, x_set, y_set, batch_size, device='cpu:0', drop_last=False, **kwargs):
+    def __init__(self, x_set, y_set, batch_size=None, device='cpu:0', drop_last=False, **kwargs):
         super().__init__(**kwargs)
         with keras.device(device):
             self.x = ops.convert_to_tensor(x_set)
@@ -15,9 +15,13 @@ class Dataset(PyDataset):
         self.drop_last = drop_last
 
     def __len__(self):
+        assert self.batch_size is not None, "batch_size must be set"
         if self.drop_last:
             return len(self.x) // self.batch_size
         return ceil(len(self.x) / self.batch_size)
+
+    def batch(self, batch_size):
+        self.batch_size = batch_size
 
     def __getitem__(self, idx):
         low = idx * self.batch_size
