@@ -79,7 +79,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             'kq_conf': self._qkv_kq_conf,
             'bq_conf': self._qkv_bq_conf,
             'enable_ebops': self.enable_ebops,
-            'beta0': self._beta0,
+            'beta0': self._beta0.clone(),
         })
         return common_kwargs
 

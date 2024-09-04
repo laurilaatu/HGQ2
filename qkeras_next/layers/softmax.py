@@ -36,7 +36,9 @@ class QSoftmax(QLayerBaseSingleInput):
             inv_oq_conf,
             enable_out_quantizer=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
-            name=f"{self.name}_inv_table"
+            name=f"{self.name}_inv_table",
+            enable_ebops=self.enable_ebops,
+            beta0=self._beta0.clone(),
         )
         self.exp_table = QUnaryFunctionLUT(
             ops.exp,
@@ -44,7 +46,9 @@ class QSoftmax(QLayerBaseSingleInput):
             exp_oq_conf,
             enable_out_quantizer=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
-            name=f"{self.name}_exp_table"
+            name=f"{self.name}_exp_table",
+            enable_ebops=self.enable_ebops,
+            beta0=self._beta0.clone(),
         )
 
     def build(self, input_shape):
