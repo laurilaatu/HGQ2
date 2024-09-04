@@ -76,24 +76,39 @@ class QLayerBase(Layer, metaclass=ABCMeta):
         config = deserialize_keras_object(config)
         return super().from_config(config)
 
+    @property
+    def _quantizers(self):
+        quantizers = []
+        for layer in self._flatten_layers():
+            if isinstance(layer, Quantizer):
+                quantizers.append(layer)
+        return quantizers
+
 
 class QLayerBaseSingleInput(QLayerBase):
     def __init__(
             self,
             iq_conf: QuantizerConfig | None,
+            disable_iq=False,
             **kwargs
     ):
         super().__init__(**kwargs)
-        iq_conf = iq_conf or QuantizerConfig('default', 'input')
-        self._iq = Quantizer(iq_conf, name=f"{self.name}_iq")
+        if not disable_iq:
+            iq_conf = iq_conf or QuantizerConfig('default', 'input')
+            self._iq = Quantizer(iq_conf, name=f"{self.name}_iq")
+        else:
+            self._iq = None
 
     @property
     def iq(self):
+        if self._iq is None:
+            raise AttributeError("iq has been disabled.")
         return self._iq
 
     def build(self, input_shape):
         super().build(input_shape)
-        self.iq.build(input_shape)
+        if self._iq is not None:
+            self.iq.build(input_shape)
 
     def get_config(self):
         config = super().get_config()

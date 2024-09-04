@@ -20,7 +20,7 @@ class QSoftmax(QLayerBaseSingleInput):
         **kwargs
     ):
         self.supports_masking = True
-        super().__init__(iq_conf=iq_conf, **kwargs)  # type: ignore
+        super().__init__(iq_conf=iq_conf, disable_iq=not stable, **kwargs)  # type: ignore
         self.stable = stable
         self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
 
@@ -31,13 +31,15 @@ class QSoftmax(QLayerBaseSingleInput):
             _inv,
             inv_q_conf,
             enable_out_quantizer=True,
-            allow_heterogeneous_table=allow_heterogeneous_table
+            allow_heterogeneous_table=allow_heterogeneous_table,
+            name=f"{self.name}_inv_table"
         )
         self.exp_table = QUnaryFunctionLUT(
             ops.exp,
             exp_q_conf,
             enable_out_quantizer=True,
-            allow_heterogeneous_table=allow_heterogeneous_table
+            allow_heterogeneous_table=allow_heterogeneous_table,
+            name=f"{self.name}_exp_table"
         )
 
     def build(self, input_shape):
