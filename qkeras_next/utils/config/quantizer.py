@@ -377,8 +377,8 @@ class QuantizerConfig(Mapping):
         q_type = q_type.lower()
         if q_type == 'default':
             q_type = default_q_type[place]
-
-        assert (q_type, place) in default_configs, f"Default config for ({q_type}, {place}) not found."
+        if q_type != 'dummy':
+            assert (q_type, place) in default_configs, f"Default config for ({q_type}, {place}) not found."
         self.place = place
         self.q_type = q_type
 
@@ -415,6 +415,9 @@ class QuantizerConfig(Mapping):
 
     def __len__(self) -> int:
         return len(self.config)
+
+    def __bool__(self):
+        return True
 
     def get_config(self):
         return {
