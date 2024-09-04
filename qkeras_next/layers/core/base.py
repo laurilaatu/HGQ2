@@ -1,17 +1,75 @@
+import inspect
 from abc import ABCMeta
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
+from functools import wraps
+from typing import Any, overload
 
 from keras import ops
 from keras.api.initializers import Constant, Initializer
 from keras.api.layers import Concatenate, Layer
-from keras.api.saving import deserialize_keras_object, serialize_keras_object
+from keras.api.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
 from keras.src import backend
 
 from ...quantizer import Quantizer, QuantizerConfig, numbers
 from ...utils.config.layer import global_config
 
 
-class QLayerBase(Layer, metaclass=ABCMeta):
+class QLayerMeta(ABCMeta):
+    def __new__(mcs: type, name: str, bases: tuple[type], attrs: dict[str, object], **kwargs):
+
+        # ============ Compute ebops if _compute_ebops presents ==============
+        # ====================================================================
+        original_call: Callable = attrs.get('call', bases[0].call)  # type: ignore
+        _compute_ebops = attrs.get('_compute_ebops', None)
+        if _compute_ebops is None:
+            _compute_ebops = bases[0]._compute_ebops  # type: ignore
+        if original_call is not Layer.call and _compute_ebops is not QLayerBase._compute_ebops:
+
+            signature = inspect.signature(original_call)
+
+            VAR_KEYWORD = inspect.Parameter.VAR_KEYWORD
+            KEYWORD_ONLY = inspect.Parameter.KEYWORD_ONLY
+            has_training = 'training' in signature.parameters
+            has_var_keyword = any(v.kind == VAR_KEYWORD for v in signature.parameters.values())
+            new_signature = signature
+            if not has_training and not has_var_keyword:
+                training_param = inspect.Parameter('training', KEYWORD_ONLY, default=None)
+                new_params = signature.parameters.copy()
+                new_params['training'] = training_param
+                new_signature = signature.replace(parameters=new_params.values())  # type: ignore
+
+            @wraps(original_call)
+            def call(self, *args, **kwargs):
+                if kwargs.get('training', None) and self.enable_ebops:
+                    ebops = self._compute_ebops(*map(ops.shape, args))
+                    self._ebops.assign(ops.cast(ebops, self._ebops.dtype))
+                    self.add_loss(ebops * self.beta)
+                return original_call(self, *args, **kwargs)
+            call.__signature__ = new_signature  # type: ignore
+
+            if _compute_ebops is not QLayerBase._compute_ebops:
+                attrs['call'] = call
+        # ====================================================================
+
+        cls = super().__new__(mcs, name, bases, attrs, **kwargs)  # type: ignore
+
+        # =========== Register as Keras serializable if possible =============
+        # ====================================================================
+        if cls.get_config is not Layer.get_config:
+            original_get_config = cls.get_config
+
+            def get_config(self):
+                config = original_get_config(self)
+                config = serialize_keras_object(config)
+                return config
+            cls.get_config = get_config
+            cls = register_keras_serializable(package='qkeras_next')(cls)
+        # ====================================================================
+
+        return cls
+
+
+class QLayerBase(Layer, metaclass=QLayerMeta):
     def __init__(
             self,
             enable_ebops: bool | None = None,
@@ -38,6 +96,17 @@ class QLayerBase(Layer, metaclass=ABCMeta):
             return backend.convert_to_tensor(0)
         return backend.convert_to_tensor(self._ebops)
 
+    # @property
+    # def ebops(self):
+    #     if self._ebops is None:
+    #         ebops = backend.convert_to_tensor(0)
+    #     else:
+    #         ebops = self._ebops
+    #     for layer in self._flatten_layers():
+    #         if isinstance(layer, QLayerBase):
+    #             if layer._ebops is not None:
+    #                 ebops = ebops + layer._ebops
+    #     return ebops
     @property
     def enable_ebops(self):
         return self._enable_ebops
@@ -65,7 +134,7 @@ class QLayerBase(Layer, metaclass=ABCMeta):
     def get_config(self):
         config = super().get_config()
         config['enable_ebops'] = self.enable_ebops
-        config['beta0'] = serialize_keras_object(self._beta0)
+        config['beta0'] = self._beta0
         return config
 
     def enable_lora(self, *args, **kwargs):
@@ -83,6 +152,9 @@ class QLayerBase(Layer, metaclass=ABCMeta):
             if isinstance(layer, Quantizer):
                 quantizers.append(layer)
         return quantizers
+
+    def _compute_ebops(self, *args, **kwargs):
+        raise NotImplementedError("This method is abstract and should be implemented in subclasses.")
 
 
 class QLayerBaseSingleInput(QLayerBase):
@@ -112,7 +184,7 @@ class QLayerBaseSingleInput(QLayerBase):
 
     def get_config(self):
         config = super().get_config()
-        config['iq_conf'] = serialize_keras_object(self.iq.config)
+        config['iq_conf'] = self.iq.config
         return config
 
 

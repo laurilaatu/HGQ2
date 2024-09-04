@@ -52,8 +52,6 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         x = super().call(qinputs)
         if self.enable_out_quantizer:
             x = self.oq(x, training=training)
-        if self.enable_ebops and training:
-            self._compute_ebops(ops.shape(inputs))
         return x
 
     def _compute_ebops(self, shape):
@@ -63,9 +61,7 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         bw_inp = self.iq.bits_(_shape)
         bw_out = self.oq.bits_(_shape)
         # TODO: more realistic cost for lookup tables
-        ebops = ops.sum((2.**bw_inp) * bw_out) * 0.01  # type: ignore
-        self._ebops.assign(ops.cast(ebops, self._ebops.dtype))  # type: ignore
-        self.add_loss(self.beta * ebops)
+        return ops.sum((2.**bw_inp) * bw_out) * 0.01  # type: ignore
 
 
 class QPositiveUnaryFunctionLUT(QUnaryFunctionLUT):

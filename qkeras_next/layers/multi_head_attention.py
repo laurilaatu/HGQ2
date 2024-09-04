@@ -5,7 +5,6 @@ from inspect import signature
 from keras import ops
 from keras.api.initializers import Constant, Initializer
 from keras.api.layers import Concatenate, Layer, MultiHeadAttention
-from keras.api.saving import deserialize_keras_object, serialize_keras_object
 from keras.src import backend
 
 from ..quantizer import Quantizer, QuantizerConfig, numbers

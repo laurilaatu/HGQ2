@@ -10,7 +10,6 @@ from .batch_normalization import QBatchNormalization
 from .core.einsum_dense import QEinsumDense
 
 
-@register_keras_serializable(package='qkeras_next')
 class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
     def __init__(
         self,
@@ -185,9 +184,6 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
         return self.get_fused_qkernel_and_qbias(training=False, mean=mean, var=var)[1]
 
     def call(self, inputs, training=None):  # type: ignore
-        if self.enable_ebops and training:
-            self._compute_ebops(ops.shape(inputs))
-
         qinputs = self.iq(inputs, training=training)
 
         qkernel = self.kq(self.kernel, training=training)

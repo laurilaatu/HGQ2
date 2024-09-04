@@ -14,8 +14,10 @@ class QSoftmax(QLayerBaseSingleInput):
         axis: int | Sequence[int] = -1,
         iq_conf: None | QuantizerConfig = None,
         stable=False,
-        exp_q_conf: None | QuantizerConfig = None,
-        inv_q_conf: None | QuantizerConfig = None,
+        exp_iq_conf: None | QuantizerConfig = None,
+        exp_oq_conf: None | QuantizerConfig = None,
+        inv_iq_conf: None | QuantizerConfig = None,
+        inv_oq_conf: None | QuantizerConfig = None,
         allow_heterogeneous_table: bool = False,
         **kwargs
     ):
@@ -23,20 +25,23 @@ class QSoftmax(QLayerBaseSingleInput):
         super().__init__(iq_conf=iq_conf, disable_iq=not stable, **kwargs)  # type: ignore
         self.stable = stable
         self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
+        self._allow_heterogeneous_table = allow_heterogeneous_table
 
         def _inv(x):
             return 1.0 / x
 
         self.inv_table = QUnaryFunctionLUT(
             _inv,
-            inv_q_conf,
+            inv_iq_conf,
+            inv_oq_conf,
             enable_out_quantizer=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
             name=f"{self.name}_inv_table"
         )
         self.exp_table = QUnaryFunctionLUT(
             ops.exp,
-            exp_q_conf,
+            exp_iq_conf,
+            exp_oq_conf,
             enable_out_quantizer=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
             name=f"{self.name}_exp_table"
@@ -64,14 +69,12 @@ class QSoftmax(QLayerBaseSingleInput):
         sums = ops.sum(exp_inp, axis=self.axis, keepdims=True)
         divisor = self.inv_table(sums, training=training)
 
-        if training and self.enable_ebops:
-            self._compute_ebops(ops.shape(exp_inp), ops.shape(divisor))
-
         return exp_inp * divisor
 
-    def _compute_ebops(self, shape1, shape2):
-        _shape1 = (1,) + shape1[1:]
-        _shape2 = (1,) + shape2[1:]
+    def _compute_ebops(self, shape):
+        _shape1 = (1,) + shape[1:]
+        _shape2 = (1,) + shape[1:]
+        _shape2 = tuple(1 if i in self.axis else s for i, s in enumerate(_shape2))
 
         if self.stable:
             inp_bits = self.iq.bits_(_shape1)
@@ -87,5 +90,17 @@ class QSoftmax(QLayerBaseSingleInput):
 
         ebops = substract_ebops + accum_ebops + mult_ebops
         self.add_loss(self.beta * ebops)
-        ebops = ebops + self.inv_table.ebops + self.exp_table.ebops
-        self._ebops.assign(ops.cast(ebops, self._ebops.dtype))  # type: ignore
+        return ebops
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "axis": self.axis,
+            "stable": self.stable,
+            "exp_oq_conf": self.exp_table.oq.config,
+            "exp_iq_conf": self.exp_table.iq.config,
+            "inv_oq_conf": self.inv_table.oq.config,
+            "inv_iq_conf": self.inv_table.iq.config,
+            "allow_heterogeneous_table": self._allow_heterogeneous_table
+        })
+        return config

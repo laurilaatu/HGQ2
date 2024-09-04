@@ -6,7 +6,7 @@ from typing import TypedDict, overload
 from keras.api.constraints import Constraint
 from keras.api.initializers import Initializer
 from keras.api.regularizers import Regularizer
-from keras.api.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
+from keras.api.saving import deserialize_keras_object, register_keras_serializable
 
 from ...quantizer.base import BitwidthMapperBase
 from ...utils.constraints import Min, MinMax

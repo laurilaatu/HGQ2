@@ -1,6 +1,5 @@
 from keras import ops
 from keras.api.layers import InputSpec
-from keras.api.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
 from keras.src.layers.convolutional.base_conv import BaseConv
 from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
@@ -96,8 +95,6 @@ class QBaseConv(QLayerBaseSingleInput, BaseConv):
             bias = ops.reshape(qbias, bias_shape)
             outputs += bias  # type: ignore
 
-        if self.enable_ebops:
-            self._compute_ebops(ops.shape(inputs))
         if self.activation is not None:
             return self.activation(outputs)
         return outputs
@@ -122,14 +119,13 @@ class QBaseConv(QLayerBaseSingleInput, BaseConv):
             bw_bias = self.bq.bits_(ops.shape(self.bias))
             ebops = ebops + ops.mean(bw_bias) * size  # type: ignore
 
-        self._ebops.assign(ops.cast(ebops, self._ebops.dtype))  # type: ignore
-        self.add_loss(self.beta * ebops)
+        return ebops
 
     def get_config(self):
         config = super().get_config()
         config.update({
-            'kq_conf': serialize_keras_object(self.kq.config),
-            'bq_conf': serialize_keras_object(self.bq.config) if self.bq is not None else None,
+            'kq_conf': self.kq.config,
+            'bq_conf': self.bq.config if self.bq is not None else None,
         })
         return config
 
@@ -145,7 +141,6 @@ class QBaseConv(QLayerBaseSingleInput, BaseConv):
         return self.bq(self.bias)
 
 
-@register_keras_serializable(package='qkeras_next')
 class QConv1D(QBaseConv):
     def __init__(
         self,
@@ -228,15 +223,11 @@ class QConv1D(QBaseConv):
                 bias_shape = (1, self.filters) + (1,) * self.rank
             bias = ops.reshape(self.bias, bias_shape)
             outputs += bias  # type: ignore
-        if self.enable_ebops and training:
-            self._compute_ebops(ops.shape(inputs))
-
         if self.activation is not None:
             return self.activation(outputs)
         return outputs
 
 
-@register_keras_serializable(package='qkeras_next')
 class QConv2D(QBaseConv):
     def __init__(
         self,
@@ -286,7 +277,6 @@ class QConv2D(QBaseConv):
         )
 
 
-@register_keras_serializable(package='qkeras_next')
 class QConv3D(QBaseConv):
     def __init__(
         self,

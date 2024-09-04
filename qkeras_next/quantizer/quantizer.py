@@ -10,7 +10,6 @@ from .fixed_point_quantizer import FixedPointQuantizerBase, FixedPointQuantizerK
 from .float_point_quantizer import FloatPointQuantizer
 
 
-@register_keras_serializable(package='qkeras_next')
 class Quantizer(Layer):
     """The generic quantizer layer. Supports float, fixed-point (KBI, KIF) quantization. Can be initialized with a QuantizerConfig object or with the quantizer type and its parameters.
     """

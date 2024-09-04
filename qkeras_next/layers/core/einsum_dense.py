@@ -1,6 +1,5 @@
 from keras import ops
 from keras.api.layers import EinsumDense
-from keras.api.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
 from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
 from ...quantizer import Quantizer
@@ -8,7 +7,6 @@ from ...utils.config.quantizer import QuantizerConfig
 from .base import QLayerBaseSingleInput
 
 
-@register_keras_serializable(package='qkeras_next')
 class QEinsumDense(QLayerBaseSingleInput, EinsumDense):
     def __init__(
         self,
@@ -74,12 +72,10 @@ class QEinsumDense(QLayerBaseSingleInput, EinsumDense):
         if self.activation is not None:
             x = self.activation(x)
 
-        if self.enable_ebops and training:
-            self._compute_ebops(ops.shape(inputs))
-
         return x
 
     def _compute_ebops(self, shape):
+        # shape = shapes[0]
         bw_inp = self.iq.bits_((1,) + shape[1:])
         bw_ker = self.kq.bits_(ops.shape(self.kernel))
         ebops = ops.sum(ops.einsum(self.equation, bw_inp, bw_ker))
@@ -87,15 +83,13 @@ class QEinsumDense(QLayerBaseSingleInput, EinsumDense):
             bw_bias = self.bq.bits_(ops.shape(self.bias))
             size = ops.cast(ops.prod(shape[1:]), self.dtype)
             ebops = ebops + ops.mean(bw_bias) * size  # type: ignore
-
-        self._ebops.assign(ops.cast(ebops, self._ebops.dtype))  # type: ignore
-        self.add_loss(self.beta * ebops)
+        return ebops
 
     def get_config(self):
         config = super().get_config()
         config.update({
-            'kq_conf': serialize_keras_object(self.kq.config),
-            'bq_conf': serialize_keras_object(self.bq.config) if self.bq is not None else None,
+            'kq_conf': self.kq.config,
+            'bq_conf': self.bq.config if self.bq is not None else None,
         })
         return config
 

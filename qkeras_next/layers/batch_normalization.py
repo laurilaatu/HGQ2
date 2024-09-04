@@ -1,5 +1,4 @@
 from keras.api.layers import BatchNormalization
-from keras.api.saving import register_keras_serializable, serialize_keras_object
 from keras.src import backend, ops
 from keras.src.backend import standardize_dtype
 
@@ -8,7 +7,6 @@ from ..utils.config.quantizer import QuantizerConfig
 from .core.base import QLayerBaseSingleInput
 
 
-@register_keras_serializable(package='qkeras_next')
 class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
 
     @property
@@ -191,15 +189,13 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
 
         if input_dtype in ("float16", "bfloat16"):
             outputs = ops.cast(outputs, input_dtype)
-        if self.enable_ebops and training:
-            self._compute_ebops(ops.shape(inputs))
         return outputs
 
     def get_config(self):
         config = super().get_config()
         config.update({
-            'kq_conf': serialize_keras_object(self.kq.config),
-            'bq_conf': serialize_keras_object(self.bq.config),
+            'kq_conf': self.kq.config,
+            'bq_conf': self.bq.config,
         })
         return config
 
@@ -209,6 +205,4 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
         bw_bias = self.bq.bits_(self._shape)
         size = ops.cast(ops.prod(shape[1:]), self.dtype)
         ebops = ops.sum(bw_inp * bw_ker) + ops.mean(bw_bias) * size  # type: ignore
-
-        self._ebops.assign(ops.cast(ebops, self._ebops.dtype))  # type: ignore
-        self.add_loss(self.beta * ebops)
+        return ebops

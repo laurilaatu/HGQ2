@@ -1,13 +1,11 @@
 from keras import ops
 from keras.api.layers import Dense
-from keras.api.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
 
 from ...quantizer import Quantizer
 from ...utils.config.quantizer import QuantizerConfig
 from .base import QLayerBaseSingleInput
 
 
-@register_keras_serializable(package='qkeras_next')
 class QDense(QLayerBaseSingleInput, Dense):
     def __init__(
         self,
@@ -72,8 +70,6 @@ class QDense(QLayerBaseSingleInput, Dense):
             x = ops.add(x, qbias)
         if self.activation is not None:
             x = self.activation(x)
-        if self.enable_ebops and training:
-            self._compute_ebops(ops.shape(inputs))
         return x
 
     def _compute_ebops(self, shape):
@@ -85,14 +81,13 @@ class QDense(QLayerBaseSingleInput, Dense):
             size = ops.cast(ops.prod(shape[1:]), self.dtype)
             ebops = ebops + ops.mean(bw_bias) * size  # type: ignore
 
-        self._ebops.assign(ops.cast(ebops, self._ebops.dtype))  # type: ignore
-        self.add_loss(self.beta * ebops)
+        return ebops
 
     def get_config(self):
         config = super().get_config()
         config.update({
-            'kq_conf': serialize_keras_object(self.kq.config),
-            'bq_conf': serialize_keras_object(self.bq.config) if self.bq is not None else None,
+            'kq_conf': self.kq.config,
+            'bq_conf': self.bq.config if self.bq is not None else None,
         })
         return config
 
