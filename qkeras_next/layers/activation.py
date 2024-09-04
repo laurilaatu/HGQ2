@@ -42,6 +42,11 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
                 oq_conf.config['heterogeneous_axis'] = ()
             self.oq = Quantizer(oq_conf, name=f'{self.name}_oq')
 
+    def build(self, input_shape):
+        super().build(input_shape)
+        if self.enable_out_quantizer:
+            self.oq.build(input_shape)
+
     def call(self, inputs, training=None):
         qinputs = self.iq(inputs, training=training)
         x = super().call(qinputs)
