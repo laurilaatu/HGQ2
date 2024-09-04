@@ -21,7 +21,7 @@ class QLayerBase(Layer, metaclass=ABCMeta):
         super().__init__(**kwargs)
         if enable_ebops is None:
             enable_ebops = global_config['enable_ebops']
-        beta0 = beta0 or global_config['beta0']
+        beta0 = beta0 if beta0 is not None else global_config['beta0']
         beta0 = Constant(float(beta0)) if not isinstance(beta0, Initializer) else beta0
         self._enable_ebops = enable_ebops
         self._beta0 = beta0
