@@ -13,7 +13,7 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
     def beta(self):
         if self._beta is None:
             return backend.convert_to_tensor(0)
-        return backend.convert_to_tensor(self._beta)
+        return ops.cast(self._beta, ops.dtype(self._beta))
 
     @beta.setter
     def beta(self, value):

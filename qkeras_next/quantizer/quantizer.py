@@ -58,6 +58,7 @@ class Quantizer(Layer):
         return config, kwargs
 
     def call(self, inputs, training=None):
+        inputs = ops.cast(inputs, ops.dtype(inputs))  # cast to tensor, for sure... (tf is playing naughty here)
         return self.quantizer.call(inputs, training=training)
 
     def get_config(self):

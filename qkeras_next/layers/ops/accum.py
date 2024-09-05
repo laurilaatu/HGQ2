@@ -10,13 +10,13 @@ from ..core.base import QLayerBaseSingleInput
 class QSum(QLayerBaseSingleInput):
     def __init__(
             self,
-            iq_confs: Sequence[QuantizerConfig] | QuantizerConfig | None = None,
+            iq_conf: QuantizerConfig | None = None,
             axis: int | Sequence[int] = -1,
             pow2_scale: float = 1.0,
             keepdims: bool = False,
             **kwargs
     ):
-        super().__init__(iq_confs=iq_confs, **kwargs)
+        super().__init__(iq_conf=iq_conf, **kwargs)
         self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
         self._scale = float(2.**log2(pow2_scale))
         self._keepdims = keepdims
@@ -44,12 +44,12 @@ class QSum(QLayerBaseSingleInput):
 class QMeanPow2(QSum):
     def __init__(
             self,
-            iq_confs: Sequence[QuantizerConfig] | QuantizerConfig | None = None,
+            iq_conf: QuantizerConfig | None = None,
             axis: int | Sequence[int] = -1,
             keepdims: bool = False,
             **kwargs
     ):
-        super().__init__(iq_confs=iq_confs, axis=axis, keepdims=keepdims, **kwargs)
+        super().__init__(iq_conf=iq_conf, axis=axis, keepdims=keepdims, **kwargs)
 
     def build(self, input_shape):
         super().build(input_shape)

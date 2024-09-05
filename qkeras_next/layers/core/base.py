@@ -4,6 +4,7 @@ from collections.abc import Callable, Iterable, Sequence
 from functools import wraps
 from typing import Any, overload
 
+import keras
 from keras import ops
 from keras.api.initializers import Constant, Initializer
 from keras.api.layers import Concatenate, Layer
@@ -122,13 +123,13 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
     def beta(self):
         if self._beta is None:
             return backend.convert_to_tensor(0)
-        return backend.convert_to_tensor(self._beta)
+        return ops.cast(self._beta, ops.dtype(self._beta))
 
     @property
     def ebops(self):
         if self._ebops is None:
             return backend.convert_to_tensor(0)
-        return backend.convert_to_tensor(self._ebops)
+        return ops.cast(self._ebops, ops.dtype(self._ebops))
 
     @property
     def enable_ebops(self):
@@ -199,7 +200,7 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
 class QLayerBaseSingleInput(QLayerBase):
     def __init__(
             self,
-            iq_conf: QuantizerConfig | None,
+            iq_conf: QuantizerConfig | None = None,
             **kwargs
     ):
         super().__init__(**kwargs)
@@ -224,13 +225,10 @@ class QLayerBaseSingleInput(QLayerBase):
         return config
 
 
-class _InvocableTuple(tuple):
-    def __getattribute__(self, name: str):
-        if name.startswith('__'):
-            return super().__getattribute__(name)
-        if all(hasattr(f, name) for f in self):
-            return _InvocableTuple(getattr(f, name) for f in self)
-        return super().__getattribute__(name)
+class _InvocableTuple:
+    # Not subclassing tuple for stupid tensorflow tracing issue
+    def __init__(self, iterable=()):
+        self.data = tuple(iterable)
 
     def __call__(self, x, **kwargs):
         assert len(self) == len(x), f"number of elements in InvocableList must match number of inputs, got {len(self)} != {len(x)}"
@@ -238,6 +236,30 @@ class _InvocableTuple(tuple):
 
     def __bool__(self):
         return all(bool(f) for f in self)
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, item):
+        return self.data[item]
+
+    def __iter__(self):
+        return iter(self.data)
+
+# class _InvocableTuple(tuple):
+#     def __getattribute__(self, name: str):
+#         if name.startswith('__'):
+#             return super().__getattribute__(name)
+#         if all(hasattr(f, name) for f in self):
+#             return _InvocableTuple(getattr(f, name) for f in self)
+#         return super().__getattribute__(name)
+
+#     def __call__(self, x, **kwargs):
+#         assert len(self) == len(x), f"number of elements in InvocableList must match number of inputs, got {len(self)} != {len(x)}"
+#         return tuple(f(x_, **kwargs) for f, x_ in zip(self, x))
+
+#     def __bool__(self):
+#         return all(bool(f) for f in self)
 
 
 class QLayerBaseMultiInputs(QLayerBase):

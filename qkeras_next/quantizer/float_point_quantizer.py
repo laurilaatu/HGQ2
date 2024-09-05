@@ -68,15 +68,15 @@ class FloatPointQuantizer(TrainableQuantizerBase):
 
     @property
     def m(self):
-        return round_conv(backend.convert_to_tensor(self._m))  # type: ignore
+        return round_conv(ops.cast(self._m, ops.dtype(self._m)))  # type: ignore
 
     @property
     def e(self):
-        return round_conv(backend.convert_to_tensor(self._e))  # type: ignore
+        return round_conv(ops.cast(self._e, ops.dtype(self._e)))  # type: ignore
 
     @property
     def e0(self):
-        return round_conv(backend.convert_to_tensor(self._e0))  # type: ignore
+        return round_conv(ops.cast(self._e0, ops.dtype(self._e0)))  # type: ignore
 
     @property
     def bits(self):

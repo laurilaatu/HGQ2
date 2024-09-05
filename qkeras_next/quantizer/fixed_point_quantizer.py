@@ -122,7 +122,7 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
     def call(self, inputs, training=None):
         if self.overflow_mode == 'WRAP' and self.trainable:
             _new_i = self.get_minimal_i(inputs)
-            current_i = backend.convert_to_tensor(self._i)
+            current_i = ops.cast(self._i, ops.dtype(self._i))
             if training:
                 new_i = ops.stop_gradient(ops.maximum((current_i - self.i_decay_speed), _new_i))
             else:
@@ -207,11 +207,11 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
 
     @property
     def b(self):
-        return round_conv(backend.convert_to_tensor(self._b))
+        return round_conv(ops.cast(self._b, ops.dtype(self._b)))
 
     @property
     def i(self):
-        return round_conv(backend.convert_to_tensor(self._i))
+        return round_conv(ops.cast(self._i, ops.dtype(self._i)))
 
     @property
     def f(self):
@@ -311,11 +311,11 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
 
     @property
     def i(self):
-        return round_conv(backend.convert_to_tensor(self._i))
+        return round_conv(ops.cast(self._i, self._i.dtype))
 
     @property
     def f(self):
-        return round_conv(backend.convert_to_tensor(self._f))
+        return round_conv(ops.cast(self._f, self._f.dtype))
 
     @property
     def kif(self):
