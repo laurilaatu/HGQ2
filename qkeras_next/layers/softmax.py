@@ -28,7 +28,7 @@ class QSoftmax(QLayerBaseSingleInput):
         self._allow_heterogeneous_table = allow_heterogeneous_table
 
         def _inv(x):
-            return 1.0 / x
+            return 1.0 / (x + backend.epsilon())
 
         self.inv_table = QUnaryFunctionLUT(
             _inv,
@@ -73,7 +73,7 @@ class QSoftmax(QLayerBaseSingleInput):
         if mask is not None:
             exp_inp = backend.cast(mask, ops.dtype(inputs)) * exp_inp
 
-        sums = ops.sum(exp_inp, axis=self.axis, keepdims=True)
+        sums = ops.sum(exp_inp, axis=self.axis, keepdims=True)  # type: ignore
         divisor = self.inv_table(sums, training=training)
 
         return exp_inp * divisor
