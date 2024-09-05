@@ -110,7 +110,7 @@ class DummyQuantizer(TrainableQuantizerBase):
 
     @property
     def bits(self):
-        return 32
+        return 0
 
     @property
     def min(self):
