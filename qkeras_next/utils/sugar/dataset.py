@@ -1,6 +1,7 @@
 from math import ceil
 
 import keras
+import numpy as np
 from keras import ops
 from keras.api.utils import PyDataset
 
@@ -8,9 +9,13 @@ from keras.api.utils import PyDataset
 class Dataset(PyDataset):
     def __init__(self, x_set, y_set, batch_size=None, device='cpu:0', drop_last=False, **kwargs):
         super().__init__(**kwargs)
-        with keras.device(device):
-            self.x = ops.convert_to_tensor(x_set)
-            self.y = ops.convert_to_tensor(y_set)
+        if keras.backend.backend() == 'jax' and device.split(':')[0] == 'cpu':
+            self.x = np.array(x_set)
+            self.y = np.array(y_set)
+        else:
+            with keras.device(device):
+                self.x = ops.convert_to_tensor(x_set)
+                self.y = ops.convert_to_tensor(y_set)
         self.batch_size = batch_size
         self.drop_last = drop_last
 
