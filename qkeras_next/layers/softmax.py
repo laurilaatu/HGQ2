@@ -22,7 +22,7 @@ class QSoftmax(QLayerBaseSingleInput):
         **kwargs
     ):
         self.supports_masking = True
-        super().__init__(iq_conf=iq_conf, disable_iq=not stable, **kwargs)  # type: ignore
+        super().__init__(iq_conf=iq_conf, enable_iq=stable, **kwargs)  # type: ignore
         self.stable = stable
         self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
         self._allow_heterogeneous_table = allow_heterogeneous_table
@@ -34,7 +34,7 @@ class QSoftmax(QLayerBaseSingleInput):
             _inv,
             inv_iq_conf,
             inv_oq_conf,
-            enable_out_quantizer=True,
+            enable_oq=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
             name=f"{self.name}_inv_table",
             enable_ebops=self.enable_ebops,
@@ -44,7 +44,7 @@ class QSoftmax(QLayerBaseSingleInput):
             ops.exp,
             exp_iq_conf,
             exp_oq_conf,
-            enable_out_quantizer=True,
+            enable_oq=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
             name=f"{self.name}_exp_table",
             enable_ebops=self.enable_ebops,
@@ -76,18 +76,16 @@ class QSoftmax(QLayerBaseSingleInput):
         return exp_inp * divisor
 
     def _compute_ebops(self, shape):
-        _shape1 = (1,) + shape[1:]
-        _shape2 = (1,) + shape[1:]
-        _shape2 = tuple(1 if i in self.axis else s for i, s in enumerate(_shape2))
+        shape2 = tuple(1 if i in self.axis else s for i, s in enumerate(shape))
 
         if self.stable:
-            inp_bits = self.iq.bits_(_shape1)
+            inp_bits = self.iq.bits_(shape)
             substract_ebops = 1.55 * ops.sum(inp_bits)  # type: ignore # TODO: better ebops cost model for add and max
         else:
             substract_ebops = 0
 
-        exp_bits = self.exp_table.oq.bits_(_shape1)
-        inv_bits = self.inv_table.oq.bits_(_shape2)
+        exp_bits = self.exp_table.oq.bits_(shape)
+        inv_bits = self.inv_table.oq.bits_(shape2)
 
         accum_ebops = ops.sum(exp_bits) - ops.sum(ops.min(exp_bits, axis=self.axis))  # type: ignore
         mult_ebops = ops.sum(accum_ebops * inv_bits)
@@ -107,3 +105,6 @@ class QSoftmax(QLayerBaseSingleInput):
             "allow_heterogeneous_table": self._allow_heterogeneous_table
         })
         return config
+
+    def compute_output_shape(self, input_shape):
+        return input_shape

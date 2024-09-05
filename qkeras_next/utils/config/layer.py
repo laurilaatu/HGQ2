@@ -6,9 +6,16 @@ from keras.api.initializers import Initializer
 class GlobalConfig(TypedDict):
     beta0: float
     enable_ebops: bool
+    enable_oq: bool
+    enable_iq: bool
 
 
-global_config = GlobalConfig(beta0=1e-5, enable_ebops=True)
+global_config = GlobalConfig(
+    beta0=1e-5,
+    enable_ebops=True,
+    enable_oq=False,
+    enable_iq=True,
+)
 
 
 class LayerConfigScope:

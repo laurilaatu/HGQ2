@@ -21,18 +21,15 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         activation: Callable | str,
         iq_conf: QuantizerConfig | None = None,
         oq_conf: QuantizerConfig | None = None,
-        enable_out_quantizer=True,
+        enable_oq=True,
         allow_heterogeneous_table: bool = False,
         override_oq_k0_to_0: bool = False,
         **kwargs
     ):
         act_name = activation.__name__ if isinstance(activation, Callable) else activation
         assert act_name not in ('softmax', 'log_softmax'), f"activation {act_name} is not unary"
-        self.enable_out_quantizer = enable_out_quantizer
 
-        super().__init__(activation=activation, iq_conf=iq_conf, **kwargs)
-
-        if enable_out_quantizer:
+        if enable_oq:
             oq_conf = oq_conf or QuantizerConfig('default', 'table')
             if override_oq_k0_to_0:
                 if 'k0' in oq_conf.config:
@@ -40,26 +37,19 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
             if not allow_heterogeneous_table:
                 oq_conf.config['homogeneous_axis'] = None
                 oq_conf.config['heterogeneous_axis'] = ()
-            self.oq = Quantizer(oq_conf, name=f'{self.name}_oq')
-
-    def build(self, input_shape):
-        super().build(input_shape)
-        if self.enable_out_quantizer:
-            self.oq.build(input_shape)
+        super().__init__(activation=activation, iq_conf=iq_conf, oq_conf=oq_conf, enable_oq=enable_oq, **kwargs)
 
     def call(self, inputs, training=None):
-        qinputs = self.iq(inputs, training=training)
-        x = super().call(qinputs)
-        if self.enable_out_quantizer:
+        if self.enable_iq:
+            inputs = self.iq(inputs, training=training)
+        x = super().call(inputs)
+        if self.enable_oq:
             x = self.oq(x, training=training)
         return x
 
     def _compute_ebops(self, shape):
-        if not self.enable_out_quantizer:
-            return
-        _shape = (1,) + shape[1:]
-        bw_inp = self.iq.bits_(_shape)
-        bw_out = self.oq.bits_(_shape)
+        bw_inp = self.iq.bits_(shape)
+        bw_out = self.oq.bits_(shape)
         # TODO: more realistic cost for lookup tables
         return ops.sum((2.**bw_inp) * bw_out) * 0.01  # type: ignore
 
@@ -78,7 +68,7 @@ class QPositiveUnaryFunctionLUT(QUnaryFunctionLUT):
             activation=activation,
             iq_conf=iq_conf,
             oq_conf=oq_conf,
-            enable_out_quantizer=True,
+            enable_oq=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
             override_oq_k0_to_0=True,
             **kwargs

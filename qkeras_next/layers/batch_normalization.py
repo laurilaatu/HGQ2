@@ -200,9 +200,9 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
         return config
 
     def _compute_ebops(self, shape):
-        bw_inp = self.iq.bits_((1,) + shape[1:])
+        bw_inp = self.iq.bits_(shape)
         bw_ker = self.kq.bits_(self._shape)
         bw_bias = self.bq.bits_(self._shape)
-        size = ops.cast(ops.prod(shape[1:]), self.dtype)
+        size = ops.cast(ops.prod(shape), self.dtype)
         ebops = ops.sum(bw_inp * bw_ker) + ops.mean(bw_bias) * size  # type: ignore
         return ebops

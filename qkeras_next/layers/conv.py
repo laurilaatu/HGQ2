@@ -100,7 +100,7 @@ class QBaseConv(QLayerBaseSingleInput, BaseConv):
         return outputs
 
     def _compute_ebops(self, shape):
-        bw_inp = self.iq.bits_((1,) + shape[1:])
+        bw_inp = self.iq.bits_(shape)
         bw_ker = self.kq.bits_(ops.shape(self.kernel))
         if self.parallelization_factor < 0:
             ebops = ops.sum(self.convolution_op(bw_inp, bw_ker))
@@ -115,7 +115,7 @@ class QBaseConv(QLayerBaseSingleInput, BaseConv):
             ebops = ops.einsum('c,...co->', bw_inp, bw_ker)
 
         if self.bq is not None:
-            size = ops.cast(ops.prod(shape[1:]), self.dtype)
+            size = ops.cast(ops.prod(shape), self.dtype)
             bw_bias = self.bq.bits_(ops.shape(self.bias))
             ebops = ebops + ops.mean(bw_bias) * size  # type: ignore
 

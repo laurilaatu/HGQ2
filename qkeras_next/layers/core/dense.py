@@ -73,12 +73,12 @@ class QDense(QLayerBaseSingleInput, Dense):
         return x
 
     def _compute_ebops(self, shape):
-        bw_inp = self.iq.bits_((1,) + shape[1:])
+        bw_inp = self.iq.bits_(shape)
         bw_ker = self.kq.bits_(ops.shape(self.kernel))
         ebops = ops.sum(ops.matmul(bw_inp, bw_ker))
         if self.bq is not None:
             bw_bias = self.bq.bits_(ops.shape(self.bias))
-            size = ops.cast(ops.prod(shape[1:]), self.dtype)
+            size = ops.cast(ops.prod(shape), self.dtype)
             ebops = ebops + ops.mean(bw_bias) * size  # type: ignore
 
         return ebops

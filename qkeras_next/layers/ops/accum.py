@@ -30,7 +30,7 @@ class QSum(QLayerBaseSingleInput):
         return self._keepdims
 
     def _compute_ebops(self, shape):
-        bits = self.iq.bits_((1,) + shape[1:])
+        bits = self.iq.bits_(shape)
         ebops = ops.sum(bits) - ops.sum(ops.min(bits, axis=self.axis))  # type: ignore
         ebops = ebops * 0.65  # TODO: better ebops cost model for accumulators
         return ebops

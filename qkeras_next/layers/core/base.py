@@ -15,9 +15,13 @@ from ...utils.config.layer import global_config
 
 
 class QLayerMeta(ABCMeta):
-    def __new__(mcs: type, name: str, bases: tuple[type], attrs: dict[str, object], **kwargs):
 
-        cls = super().__new__(mcs, name, bases, attrs, **kwargs)  # type: ignore
+    _wrapped_cls = set()
+
+    def __call__(cls: type, *args, **kwargs):
+        if cls in QLayerMeta._wrapped_cls:
+            return super().__call__(*args, **kwargs)  # type: ignore
+        QLayerMeta._wrapped_cls.add(cls)
 
         # ====================================================================
         # ============ Compute ebops if _compute_ebops presents ==============
@@ -47,7 +51,8 @@ class QLayerMeta(ABCMeta):
                         tensors = args[0]
                     else:
                         tensors = args
-                    ebops = self._compute_ebops(*map(ops.shape, tensors))
+                    shapes = ((1,) + shape[1:] for shape in map(ops.shape, tensors))
+                    ebops = self._compute_ebops(*shapes)
                     self._ebops.assign(ops.cast(ebops, self._ebops.dtype))
                     self.add_loss(ebops * self.beta)
                 return original_call(self, *args, **kwargs)
@@ -71,7 +76,7 @@ class QLayerMeta(ABCMeta):
             cls.get_config = get_config
             cls = register_keras_serializable(package='qkeras_next')(cls)
 
-        return cls
+        return super().__call__(*args, **kwargs)  # type: ignore
 
 
 class QLayerBase(Layer, metaclass=QLayerMeta):
@@ -79,6 +84,9 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
             self,
             enable_ebops: bool | None = None,
             beta0: numbers | None | Initializer = None,
+            enable_oq: bool | None = None,
+            enable_iq: bool | None = None,
+            oq_conf: QuantizerConfig | None = None,
             **kwargs
     ):
         super().__init__(**kwargs)
@@ -86,8 +94,29 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
             enable_ebops = global_config['enable_ebops']
         beta0 = beta0 if beta0 is not None else global_config['beta0']
         beta0 = Constant(float(beta0)) if not isinstance(beta0, Initializer) else beta0
+
+        self._enable_iq = enable_iq if enable_iq is not None else global_config['enable_iq']
+        self._enable_oq = enable_oq if enable_oq is not None else global_config['enable_oq']
         self._enable_ebops = enable_ebops
         self._beta0 = beta0
+
+        if self.enable_oq:
+            oq_conf = oq_conf or QuantizerConfig('default', 'input')
+            self._oq = Quantizer(oq_conf, name=f"{self.name}_oq")
+
+    @property
+    def enable_iq(self):
+        return self._enable_iq
+
+    @property
+    def enable_oq(self):
+        return self._enable_oq
+
+    @property
+    def oq(self):
+        if not self.enable_oq:
+            raise AttributeError(f"oq has been disabled for {self.name}.")
+        return self._oq
 
     @property
     def beta(self):
@@ -101,17 +130,6 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
             return backend.convert_to_tensor(0)
         return backend.convert_to_tensor(self._ebops)
 
-    # @property
-    # def ebops(self):
-    #     if self._ebops is None:
-    #         ebops = backend.convert_to_tensor(0)
-    #     else:
-    #         ebops = self._ebops
-    #     for layer in self._flatten_layers():
-    #         if isinstance(layer, QLayerBase):
-    #             if layer._ebops is not None:
-    #                 ebops = ebops + layer._ebops
-    #     return ebops
     @property
     def enable_ebops(self):
         return self._enable_ebops
@@ -136,10 +154,26 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
             self._beta = None
             self._ebops = None
 
+        if not self.enable_oq or self.oq.built:
+            return
+        self.try_build_output_quantizer(*args, **kwargs)
+
+    def try_build_output_quantizer(self, input_shape=None, *args, **kwargs):
+        try:
+            output_shape = self.compute_output_shape(input_shape)
+        except Exception as e:
+            return
+        self.oq.build(output_shape)
+
     def get_config(self):
         config = super().get_config()
-        config['enable_ebops'] = self.enable_ebops
-        config['beta0'] = self._beta0
+        config.update({
+            'enable_ebops': self.enable_ebops,
+            'beta0': self._beta0,
+            'enable_oq': self.enable_oq,
+            'enable_iq': self.enable_iq,
+            'oq_conf': self.oq.config if self.enable_oq else None,
+        })
         return config
 
     def enable_lora(self, *args, **kwargs):
@@ -150,53 +184,60 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
         config = deserialize_keras_object(config)
         return super().from_config(config)
 
-    @property
-    def _quantizers(self):
-        quantizers = []
-        for layer in self._flatten_layers():
-            if isinstance(layer, Quantizer):
-                quantizers.append(layer)
-        return quantizers
-
     def _compute_ebops(self, *args, **kwargs):
         raise NotImplementedError("This method is abstract and should be implemented in subclasses.")
+
+    def _post_build(self):
+        if self._enable_oq:
+            assert hasattr(self, '_oq'), f"Output Quantizer is not defined for {self.name}, but enable_oq is True."
+        if self._enable_iq:
+            assert hasattr(self, '_iq'), f"Input Quantizer is not defined for {self.name}, but enable_iq is True."
+        for sublayer in self._flatten_layers():
+            assert sublayer.built, f"Sublayer {sublayer.name} is not built for {self.name}"
 
 
 class QLayerBaseSingleInput(QLayerBase):
     def __init__(
             self,
             iq_conf: QuantizerConfig | None,
-            disable_iq=False,
             **kwargs
     ):
         super().__init__(**kwargs)
-        if not disable_iq:
+        if self.enable_iq:
             iq_conf = iq_conf or QuantizerConfig('default', 'input')
             self._iq = Quantizer(iq_conf, name=f"{self.name}_iq")
-        else:
-            self._iq = None
 
     @property
     def iq(self):
-        if self._iq is None:
-            raise AttributeError("iq has been disabled.")
+        if not self.enable_iq:
+            raise AttributeError(f"iq has been disabled for {self.name}.")
         return self._iq
 
     def build(self, input_shape):
         super().build(input_shape)
-        if self._iq is not None:
+        if self._iq is not None and not self._iq.built:
             self.iq.build(input_shape)
 
     def get_config(self):
         config = super().get_config()
-        config['iq_conf'] = self.iq.config
+        config['iq_conf'] = self.iq.config if self.enable_iq else None
         return config
 
 
 class _InvocableTuple(tuple):
+    def __getattribute__(self, name: str):
+        if name.startswith('__'):
+            return super().__getattribute__(name)
+        if all(hasattr(f, name) for f in self):
+            return _InvocableTuple(getattr(f, name) for f in self)
+        return super().__getattribute__(name)
+
     def __call__(self, x, **kwargs):
         assert len(self) == len(x), f"number of elements in InvocableList must match number of inputs, got {len(self)} != {len(x)}"
         return tuple(f(x_, **kwargs) for f, x_ in zip(self, x))
+
+    def __bool__(self):
+        return all(bool(f) for f in self)
 
 
 class QLayerBaseMultiInputs(QLayerBase):
@@ -206,13 +247,17 @@ class QLayerBaseMultiInputs(QLayerBase):
             **kwargs
     ):
         super().__init__(**kwargs)
-        self._iq_confs = iq_confs if iq_confs is not None else QuantizerConfig('default', 'input')
+        self._iqs_confs = None
+        if self.enable_iq:
+            self._iq_confs = iq_confs if iq_confs is not None else QuantizerConfig('default', 'input')
 
     @property
-    def iqs(self):
+    def iq(self):
+        if not self.enable_iq:
+            raise AttributeError(f"iq has been disabled for {self.name}.")
         if not self.built:
-            raise AttributeError("iqs is not available before build.")
-        return self._iqs
+            raise AttributeError(f"iqs is not available before build for {self.name}.")
+        return self._iq
 
     @property
     def iq_confs(self):
@@ -233,9 +278,9 @@ class QLayerBaseMultiInputs(QLayerBase):
             iq = Quantizer(iq_conf, name=f"{self.name}_iq_{i}")
             iq.build(input_shape[i])
             _iqs.append(iq)
-        self._iqs = _InvocableTuple(_iqs)
+        self._iq = _InvocableTuple(_iqs)
 
     def get_config(self):
         config = super().get_config()
-        config['iq_confs'] = serialize_keras_object(self.iq_confs)
+        config['iq_confs'] = self.iq_confs if self.enable_iq else None
         return config

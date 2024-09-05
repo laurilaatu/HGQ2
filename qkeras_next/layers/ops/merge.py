@@ -9,13 +9,13 @@ from ..core.base import QLayerBaseMultiInputs
 
 class QMerge(QLayerBaseMultiInputs, Merge):  # type: ignore
     def call(self, inputs, training=None):
-        qinputs = self.iqs(inputs, training=training)
+        qinputs = self.iq(inputs, training=training)
         r = super().call(qinputs)
         return r
 
 
 def _ebops_from_sum_bits_excl_max(self: QMerge, shapes):
-    bitss = [iq.bits_((1,) + shape[1:]) for iq, shape in zip(self.iqs, shapes)]
+    bitss = [iq.bits_(shape) for iq, shape in zip(self.iq, shapes)]
     _ebops = ops.sum(sum(bitss))
     _min = bitss[0]
     for bits in bitss[1:]:
@@ -40,7 +40,7 @@ class QAveragePow2(QAdd, Average):
 
 class QSubtract(QMerge, Subtract):
     def _compute_ebops(self, shapes):
-        bits0, bits1 = (iq.bits_((1,) + shape[1:]) for iq, shape in zip(self.iqs, shapes))
+        bits0, bits1 = (iq.bits_(shape) for iq, shape in zip(self.iq, shapes))
         ebops = ops.sum(ops.maximum(bits0, bits1))
         ebops = ebops  # TODO: better ebops cost model for subtract
         return ebops
@@ -48,7 +48,7 @@ class QSubtract(QMerge, Subtract):
 
 class QMultiply(QMerge, Multiply):
     def _compute_ebops(self, shapes):
-        bitss = [iq.bits_((1,) + shape[1:]) for iq, shape in zip(self.iqs, shapes)]
+        bitss = [iq.bits_(shape) for iq, shape in zip(self.iq, shapes)]
         _ebops = bitss[0]
         for bits in bitss[1:]:
             _ebops = ops.multiply(_ebops, bits)
@@ -58,7 +58,7 @@ class QMultiply(QMerge, Multiply):
 
 class QDot(QMerge, Dot):
     def _compute_ebops(self, shapes):
-        bits0, bits1 = (iq.bits_((1,) + shape[1:]) for iq, shape in zip(self.iqs, shapes))
+        bits0, bits1 = (iq.bits_(shape) for iq, shape in zip(self.iq, shapes))
         ebops = ops.sum(bits0 * bits1)
         return ebops
 
@@ -83,7 +83,7 @@ class QMatmul(QMerge):
         return ops.matmul(inp1, inp2)
 
     def _compute_ebops(self, shapes):
-        bits0, bits1 = (iq.bits_((1,) + shape[1:]) for iq, shape in zip(self.iqs, shapes))
+        bits0, bits1 = (iq.bits_(shape) for iq, shape in zip(self.iq, shapes))
         ebops = ops.sum(ops.matmul(bits0, bits1))
         return ebops
 
@@ -98,6 +98,6 @@ class QEinsum(QMerge):
         return ops.einsum(self.equation, *inputs)
 
     def _compute_ebops(self, shapes):
-        bitss = [iq.bits_((1,) + shape[1:]) for iq, shape in zip(self.iqs, shapes)]
+        bitss = [iq.bits_(shape) for iq, shape in zip(self.iq, shapes)]
         ebops = ops.einsum(self._ebops_equation, *bitss)
         return ebops
