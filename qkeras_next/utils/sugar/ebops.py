@@ -12,5 +12,5 @@ class FreeEBOPs(Callback):
         ebops = 0
         for layer in self.model._flatten_layers():
             if isinstance(layer, QLayerBase):
-                ebops += int(ops.convert_to_numpy(layer.ebops))
+                ebops += int(ops.convert_to_numpy(layer._ebops))
         logs['ebops'] = ebops

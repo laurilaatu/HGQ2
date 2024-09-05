@@ -111,3 +111,12 @@ class QSoftmax(QLayerBaseSingleInput):
 
     def compute_output_shape(self, input_shape):
         return input_shape
+
+    @property
+    def ebops(self):
+        ebops = sum((
+            ops.convert_to_tensor(self._ebops),
+            self.exp_table.ebops,
+            self.inv_table.ebops,
+        ))
+        return round(ops.convert_to_numpy(ebops))  # type: ignore

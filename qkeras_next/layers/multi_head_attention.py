@@ -346,3 +346,16 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         if self.parallelization_factor > 0:
             return ebops * self.parallelization_factor
         return ebops
+
+    @property
+    def ebops(self):
+        ebops = sum((
+            self._query_dense.ebops,
+            self._key_dense.ebops,
+            self._value_dense.ebops,
+            self._softmax.ebops,
+            self._output_dense.ebops,
+            ops.convert_to_tensor(self._ebops),
+        ))
+
+        return round(ops.convert_to_numpy(ebops))  # type: ignore
