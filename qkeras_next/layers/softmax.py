@@ -93,7 +93,6 @@ class QSoftmax(QLayerBaseSingleInput):
         mult_ebops = ops.sum(accum_ebops * inv_bits)
 
         ebops = substract_ebops + accum_ebops + mult_ebops
-        self.add_loss(self.beta * ebops)
         return ebops
 
     def get_config(self):

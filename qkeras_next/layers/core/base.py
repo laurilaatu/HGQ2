@@ -43,7 +43,11 @@ class QLayerMeta(ABCMeta):
             @wraps(original_call)
             def call(self, *args, **kwargs):
                 if kwargs.get('training', None) and self.enable_ebops:
-                    ebops = self._compute_ebops(*map(ops.shape, args))
+                    if isinstance(args[0], (tuple, list)):
+                        tensors = args[0]
+                    else:
+                        tensors = args
+                    ebops = self._compute_ebops(*map(ops.shape, tensors))
                     self._ebops.assign(ops.cast(ebops, self._ebops.dtype))
                     self.add_loss(ebops * self.beta)
                 return original_call(self, *args, **kwargs)
@@ -53,7 +57,7 @@ class QLayerMeta(ABCMeta):
 
         # ====================================================================
         # =========== Register as Keras serializable if possible =============
-        # ===================================================================
+        # ====================================================================
 
         if cls.get_config is not Layer.get_config:
             original_get_config = cls.get_config
@@ -198,7 +202,7 @@ class _InvocableTuple(tuple):
 class QLayerBaseMultiInputs(QLayerBase):
     def __init__(
             self,
-            iq_confs: Sequence[QuantizerConfig] | QuantizerConfig | None,
+            iq_confs: Sequence[QuantizerConfig] | QuantizerConfig | None = None,
             **kwargs
     ):
         super().__init__(**kwargs)

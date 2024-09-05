@@ -7,7 +7,7 @@ from keras.src.layers.merging.base_merge import Merge
 from ..core.base import QLayerBaseMultiInputs
 
 
-class QMerge(Merge, QLayerBaseMultiInputs):  # type: ignore
+class QMerge(QLayerBaseMultiInputs, Merge):  # type: ignore
     def call(self, inputs, training=None):
         qinputs = self.iqs(inputs, training=training)
         r = super().call(qinputs)
@@ -16,7 +16,7 @@ class QMerge(Merge, QLayerBaseMultiInputs):  # type: ignore
 
 def _ebops_from_sum_bits_excl_max(self: QMerge, shapes):
     bitss = [iq.bits_((1,) + shape[1:]) for iq, shape in zip(self.iqs, shapes)]
-    _ebops = sum(bitss)
+    _ebops = ops.sum(sum(bitss))
     _min = bitss[0]
     for bits in bitss[1:]:
         _min = ops.minimum(_min, bits)
