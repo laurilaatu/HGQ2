@@ -349,7 +349,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
 
     @property
     def ebops(self):
-        ebops = sum((
+        ebops = sum((  # type: ignore
             self._query_dense.ebops,
             self._key_dense.ebops,
             self._value_dense.ebops,

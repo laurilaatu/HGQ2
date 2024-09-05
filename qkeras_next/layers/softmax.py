@@ -114,7 +114,7 @@ class QSoftmax(QLayerBaseSingleInput):
 
     @property
     def ebops(self):
-        ebops = sum((
+        ebops = sum((  # type: ignore
             ops.convert_to_tensor(self._ebops),
             self.exp_table.ebops,
             self.inv_table.ebops,
