@@ -15,9 +15,34 @@ from ...quantizer import Quantizer, QuantizerConfig, numbers
 from ...utils.config.layer import global_config
 
 
+def get_method_source(cls, method_name):
+    "Get the class that defines the method"
+    for parent_cls in inspect.getmro(cls):
+        if method_name in parent_cls.__dict__:
+            return parent_cls
+    assert False, f"Method {method_name} is not defined in {cls}"
+
+
+def check_save_load_own_variables(cls):
+    "Assert that save_own_variables and load_own_variables are not overriden, or they should be defined in the same class"
+
+    if cls.save_own_variables is not Layer.save_own_variables:
+        cls_save = get_method_source(cls, 'save_own_variables')
+        assert cls_save is cls, f'save_own_variables in {cls} is overriden in {cls_save}, which will likely break save_weights fn'
+    if cls.load_own_variables is not Layer.load_own_variables:
+        cls_load = get_method_source(cls, 'load_own_variables')
+        assert cls_load is cls, f'load_own_variables in {cls} is overriden in {cls_load}, which will likely break load_weights fn'
+
+
 class QLayerMeta(ABCMeta):
 
     _wrapped_cls = set()
+
+    def __init__(cls, name, bases, dct):
+        super().__init__(name, bases, dct)
+        # if hasattr(cls, 'save_own_variables') or hasattr(cls, 'load_own_variables'):
+        print(cls)
+        check_save_load_own_variables(cls)
 
     def __call__(cls: type, *args, **kwargs):
         if cls in QLayerMeta._wrapped_cls:
@@ -81,6 +106,9 @@ class QLayerMeta(ABCMeta):
 
 
 class QLayerBase(Layer, metaclass=QLayerMeta):
+    save_own_variables = Layer.save_own_variables
+    load_own_variables = Layer.load_own_variables
+
     def __init__(
             self,
             enable_ebops: bool | None = None,

@@ -1,5 +1,4 @@
 from keras import ops
-from keras.api.layers import InputSpec
 from keras.src.layers.convolutional.base_conv import BaseConv
 from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
