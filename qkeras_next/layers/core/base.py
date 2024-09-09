@@ -40,8 +40,6 @@ class QLayerMeta(ABCMeta):
 
     def __init__(cls, name, bases, dct):
         super().__init__(name, bases, dct)
-        # if hasattr(cls, 'save_own_variables') or hasattr(cls, 'load_own_variables'):
-        print(cls)
         check_save_load_own_variables(cls)
 
     def __call__(cls: type, *args, **kwargs):
