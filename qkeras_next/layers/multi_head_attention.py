@@ -57,6 +57,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         softmax_exp_oq_conf: QuantizerConfig | None = None,
         softmax_inv_iq_conf: QuantizerConfig | None = None,
         softmax_inv_oq_conf: QuantizerConfig | None = None,
+        softmax_oq_conf: QuantizerConfig | None = None,
         softmax_allow_heterogeneous_table: bool = False,
         parallelization_factor=-1,
         **kwargs,
@@ -73,6 +74,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         self._softmax_exp_oq_conf = kwargs.pop('softmax_exp_oq_conf') or QuantizerConfig(place='table')
         self._softmax_inv_iq_conf = kwargs.pop('softmax_inv_iq_conf') or QuantizerConfig(place='input')
         self._softmax_inv_oq_conf = kwargs.pop('softmax_inv_oq_conf') or QuantizerConfig(place='table')
+        self._softmax_oq_conf = kwargs.pop('softmax_oq_conf') or QuantizerConfig(place='input')
         self._softmax_allow_heterogeneous_table = kwargs.pop('softmax_allow_heterogeneous_table')
         self.parallelization_factor = kwargs.pop('parallelization_factor')
         self._stable_softmax = kwargs.pop('stable_softmax')
@@ -269,6 +271,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
                 attn_scores_rank - len(self._attention_axes), attn_scores_rank
             )
         )
+        _inverse_sqrt_key_dim = 1.0 / math.sqrt(float(self._key_dim))
         self._softmax = QSoftmax(
             enable_oq=True,
             axis=norm_axes,
@@ -279,13 +282,15 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             exp_oq_conf=self._softmax_exp_oq_conf,
             inv_iq_conf=self._softmax_inv_iq_conf,
             inv_oq_conf=self._softmax_inv_oq_conf,
+            oq_conf=self._softmax_oq_conf,
             allow_heterogeneous_table=self._softmax_allow_heterogeneous_table,
+            input_scaler=_inverse_sqrt_key_dim,
+            enable_ebops=self.enable_ebops,
         )
         self._dropout_layer = Dropout(
             rate=self._dropout, dtype=self.dtype_policy, seed=self.seed
         )
-        self._inverse_sqrt_key_dim = 1.0 / math.sqrt(float(self._key_dim))
-
+        self._inverse_sqrt_key_dim = 1.0
         # Build softmax and dropout layers if possible.
         if shapes is not None:
             q_shape, v_shape, _ = shapes

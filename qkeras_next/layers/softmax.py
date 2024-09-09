@@ -19,6 +19,7 @@ class QSoftmax(QLayerBaseSingleInput):
         inv_iq_conf: None | QuantizerConfig = None,
         inv_oq_conf: None | QuantizerConfig = None,
         allow_heterogeneous_table: bool = False,
+        input_scaler: float = 1.0,
         **kwargs
     ):
         self.supports_masking = True
@@ -27,8 +28,13 @@ class QSoftmax(QLayerBaseSingleInput):
         self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
         self._allow_heterogeneous_table = allow_heterogeneous_table
 
+        self.input_scaler = input_scaler
+
         def _inv(x):
             return 1.0 / (x + backend.epsilon())
+
+        def _exp(x):
+            return ops.exp(x * self.input_scaler)
 
         self.inv_table = QUnaryFunctionLUT(
             _inv,
@@ -42,7 +48,7 @@ class QSoftmax(QLayerBaseSingleInput):
             beta0=self._beta0.clone(),
         )
         self.exp_table = QUnaryFunctionLUT(
-            ops.exp,
+            _exp,
             exp_iq_conf,
             exp_oq_conf,
             enable_iq=True,
@@ -105,7 +111,8 @@ class QSoftmax(QLayerBaseSingleInput):
             "exp_iq_conf": self.exp_table.iq.config if self.enable_iq else None,
             "inv_oq_conf": self.inv_table.oq.config,
             "inv_iq_conf": self.inv_table.iq.config,
-            "allow_heterogeneous_table": self._allow_heterogeneous_table
+            "allow_heterogeneous_table": self._allow_heterogeneous_table,
+            "input_scaler": self.input_scaler,
         })
         return config
 
