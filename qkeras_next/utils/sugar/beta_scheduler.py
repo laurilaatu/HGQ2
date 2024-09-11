@@ -36,40 +36,45 @@ class PieceWiseSchedule:
 
     Parameters
     ----------
-    intervals : sequence of tuple[int, float, str]
+    intervals : sequence of tuple[epoch:int, beta:float, interp:str]
         The key points of the schedule. Each tuple contains the starting epoch, beta, and interpolation for the interval.
-        # Example: [(0, 0, 'linear'), (10, 1e-5, 'log'), (20, 1e-3, 'linear')] will start with beta=0, then increase to 1e-5 in 10 epochs linearly, and increase to 1e-3 in another 10 epochs logarithmically. beta will stay at 1e-3 after 20 epochs.
-    total_epochs : int
-        The total number of epochs. Much be greater or equal to the last epoch in the intervals.
+
+        epoch: the epoch number
+        beta: the beta value at that epoch
+        interp: the interpolation type in the interval after that epoch, one of 'linear', 'log', 'constant'. After the last epoch defined in the intervals, the beta value will always be constant disregarding the interpolation type.
+
+        # Example: [(0, 0, 'linear'), (10, 1e-5, 'log'), (20, 1e-3, 'constant')] will start with beta=0, then increase to 1e-5 in 10 epochs linearly, and increase to 1e-3 in another 10 epochs logarithmically. beta will stay at 1e-3 after 20 epochs.
     """
 
-    def __init__(self, intervals: Sequence[tuple[int, float, str]], total_epochs):
-        epochs = []
-        betas = []
-        interpolations = []
-        for epoch, beta, interp in intervals:
-            epochs.append(epoch)
-            betas.append(beta)
-            assert interp in ['linear', 'log']
-            interpolations.append(interp == 'log')
-        epochs = np.array(epochs + [total_epochs])
-        assert np.all(np.diff(epochs) >= 0)
-        betas = np.array(betas)
-        interpolations = np.array(interpolations)
+    def __init__(self, intervals: Sequence[tuple[int, float, str]]):
+
+        intervals = sorted(intervals, key=lambda v: v[0])
+        epochs = [v[0] for v in intervals]
+        betas = [v[1] for v in intervals]
+        interpolations = [v[2] for v in intervals]
+        assert all(interp in ('linear', 'log', 'constant') for interp in interpolations)
 
         self.epochs = epochs
         self.betas = betas
         self.interpolations = interpolations
-        self.total_epochs = total_epochs
 
     def __call__(self, epoch):
-        if epoch >= self.total_epochs:
-            return self.betas[-1, -1]
-        idx = np.searchsorted(self.epochs, epoch, side='right') - 1
-        beta0, beta1 = self.betas[idx]
-        epoch0, epoch1 = self.epochs[idx], self.epochs[idx + 1]
-        if self.interpolations[idx]:
-            beta = beta0 * (beta1 / beta0) ** ((epoch - epoch0) / (epoch1 - epoch0))
-        else:
-            beta = beta0 + (beta1 - beta0) * (epoch - epoch0) / (epoch1 - epoch0)
+        idx0 = np.searchsorted(self.epochs, epoch, side='right') - 1
+        idx1 = idx0 + 1
+        idx0 = max(0, min(idx0, len(self.epochs) - 1))
+        idx1 = max(0, min(idx1, len(self.epochs) - 1))
+        beta0, beta1 = self.betas[idx0], self.betas[idx1]
+        epoch0, epoch1 = self.epochs[idx0], self.epochs[idx1]
+        interp = self.interpolations[idx0]
+
+        eps = 1e-9
+        match interp:
+            case 'linear':
+                beta = beta0 + (beta1 - beta0) * (epoch - epoch0) / (epoch1 - epoch0 + eps)
+            case 'log':
+                beta = beta0 * (beta1 / beta0) ** ((epoch - epoch0) / (epoch1 - epoch0 + eps))
+            case 'constant':
+                beta = beta0
+            case _:
+                raise ValueError(f"Invalid interpolation type: {interp}")
         return float(beta)
