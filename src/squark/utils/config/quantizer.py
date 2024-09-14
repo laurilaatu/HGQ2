@@ -203,7 +203,7 @@ class QuantizerConfig(Mapping):
     @overload
     def __init__(
         self,
-        q_type: str = 'default',
+        q_type: str = 'kbi',
         place: str = 'datalane',
         *,
         k0: numbers | bool | Initializer = True,
@@ -260,7 +260,7 @@ class QuantizerConfig(Mapping):
     @overload
     def __init__(
         self,
-        q_type: str = 'default',
+        q_type: str = 'kif',
         place: str = 'datalane',
         *,
         k0: numbers | bool | Initializer = True,
@@ -314,7 +314,7 @@ class QuantizerConfig(Mapping):
     @overload
     def __init__(
         self,
-        q_type: str = 'default',
+        q_type: str = 'float',
         place: str = 'datalane',
         *,
         m0: numbers | Initializer = 2,
@@ -371,6 +371,8 @@ class QuantizerConfig(Mapping):
             The type of the quantizer. One of 'kbi', 'kif', 'float', 'default'. If 'default', the default quantizer type is used, by default 'kbi'. Can be overridden by the `default_q_type` argument of `QuantizerConfigScope`.
         place : str, optional
             The default config to be loaded of the quantizer. One of 'weight', 'datalane', by default 'weight'
+
+        **kwargs : Specific parameters for different quantizer types.
         """
 
         place = place.lower()
