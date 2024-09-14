@@ -41,6 +41,21 @@ class QLayerMeta(ABCMeta):
     def __init__(cls, name, bases, dct):
         super().__init__(name, bases, dct)
         check_save_load_own_variables(cls)
+        # ====================================================================
+        # =========== Register as Keras serializable if possible =============
+        # ====================================================================
+
+        if cls.get_config is not Layer.get_config and cls.__module__.startswith('squark'):
+            original_get_config = cls.get_config
+
+            @wraps(original_get_config)
+            def get_config(self):
+                config = original_get_config(self)
+                config = serialize_keras_object(config)
+                return config
+
+            cls.get_config = get_config  # type: ignore
+            cls = register_keras_serializable(package='squark')(cls)
 
     def __call__(cls: type, *args, **kwargs):
         if cls in QLayerMeta._wrapped_cls:
@@ -56,12 +71,15 @@ class QLayerMeta(ABCMeta):
 
         if original_call is not Layer.call and _compute_ebops is not QLayerBase._compute_ebops:
 
-            signature = inspect.signature(original_call)
             VAR_KEYWORD = inspect.Parameter.VAR_KEYWORD
             KEYWORD_ONLY = inspect.Parameter.KEYWORD_ONLY
+            signature = inspect.signature(original_call)
+
+            # Add kwarg training to signature if not present
             has_training = 'training' in signature.parameters
             has_var_keyword = any(v.kind == VAR_KEYWORD for v in signature.parameters.values())
             new_signature = signature
+
             if not has_training and not has_var_keyword:
                 training_param = inspect.Parameter('training', KEYWORD_ONLY, default=None)
                 new_params = signature.parameters.copy()
@@ -83,22 +101,6 @@ class QLayerMeta(ABCMeta):
             call.__signature__ = new_signature  # type: ignore
 
             cls.call = call
-
-        # ====================================================================
-        # =========== Register as Keras serializable if possible =============
-        # ====================================================================
-
-        if cls.get_config is not Layer.get_config:
-            original_get_config = cls.get_config
-
-            @wraps(original_get_config)
-            def get_config(self):
-                config = original_get_config(self)
-                config = serialize_keras_object(config)
-                return config
-
-            cls.get_config = get_config
-            cls = register_keras_serializable(package='squark')(cls)
 
         return super().__call__(*args, **kwargs)  # type: ignore
 

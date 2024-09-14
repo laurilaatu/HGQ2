@@ -1,7 +1,5 @@
-import inspect
 import math
 from collections.abc import Sized
-from typing import Any
 
 from keras import ops
 from keras.api.initializers import Constant
@@ -9,19 +7,10 @@ from keras.api.layers import Dropout, MultiHeadAttention
 from keras.src.layers.attention.multi_head_attention import _build_attention_equation, _build_proj_equation
 
 from ..quantizer.config import QuantizerConfig
+from ..utils.misc import gather_vars_to_kwargs
 from .core.base import QLayerBase
 from .core.einsum_dense import QEinsumDense
 from .softmax import QSoftmax
-
-
-def gather_vars_to_kwargs() -> dict[str, Any]:
-    vars = inspect.getouterframes(inspect.currentframe(), 2)[1][0].f_locals
-    kwarg = vars.pop('kwargs', {})
-    kwarg.update(vars)
-    for k in list(kwarg.keys()):
-        if k.startswith('__') and k.endswith('__'):
-            del kwarg[k]
-    return kwarg
 
 
 def _get_output_shape(output_rank, known_last_dims, input_shape):

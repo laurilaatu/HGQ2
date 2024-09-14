@@ -5,7 +5,7 @@ from keras import ops
 from keras.src.layers import Layer
 
 numbers = int | float | np.integer | np.floating
-
+from keras.api.saving import register_keras_serializable
 from keras.src import backend
 
 
@@ -37,6 +37,9 @@ class BitwidthMapperBase:
         raise NotImplementedError
 
     def inference_weight_shape(self, input_shape) -> tuple[int, ...]:
+        raise NotImplementedError
+
+    def get_config(self):
         raise NotImplementedError
 
 
@@ -122,6 +125,7 @@ class DummyQuantizer(TrainableQuantizerBase):
         return backend.epsilon()
 
 
+@register_keras_serializable(package="squark")
 class DefaultBitwidthMapper(BitwidthMapperBase):
     """Default bitwidth mapper for HG quantizers."""
 
@@ -153,3 +157,9 @@ class DefaultBitwidthMapper(BitwidthMapperBase):
 
     def x_to_bw(self, x):
         return ops.max(ops.abs(x), axis=self.homogeneous_axis, keepdims=True)
+
+    def get_config(self):
+        return dict(
+            heterogeneous_axis=self.heterogeneous_axis,
+            homogeneous_axis=self.homogeneous_axis,
+        )

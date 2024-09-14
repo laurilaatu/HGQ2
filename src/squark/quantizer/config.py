@@ -219,6 +219,7 @@ class QuantizerConfig(Mapping):
         bw_mapper: BitwidthMapperBase | None = None,
         scaler: numbers | None = None,
         qnoise_factor: float | None = None,
+        **kwargs,
     ) -> None:
         f"""Fixed point quantizer config with KBI parametrization.
 
@@ -282,6 +283,7 @@ class QuantizerConfig(Mapping):
         bw_mapper: BitwidthMapperBase | None = None,
         scaler: numbers | None = None,
         qnoise_factor: float | None = None,
+        **kwargs,
     ) -> None:
         """Fixed point quantizer config with KIF parametrization.
 
@@ -344,6 +346,7 @@ class QuantizerConfig(Mapping):
         bw_mapper: BitwidthMapperBase | None = None,
         scaler: numbers | None = None,
         qnoise_factor: float | None = None,
+        **kwargs,
     ) -> None:
         """Floating point quantizer config.
 

@@ -1,3 +1,4 @@
+from ..quantizer import Quantizer
 from .activation import QPositiveUnaryFunctionLUT, QUnaryFunctionLUT
 from .batch_normalization import QBatchNormalization
 from .conv import QConv1D, QConv2D, QConv3D
