@@ -1,6 +1,6 @@
 from collections.abc import Callable
 from functools import singledispatch
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 import keras
 from keras import ops

@@ -2,8 +2,8 @@ from keras.api.layers import BatchNormalization
 from keras.src import backend, ops
 from keras.src.backend import standardize_dtype
 
-from ..config.quantizer import QuantizerConfig
 from ..quantizer import Quantizer
+from ..quantizer.config import QuantizerConfig
 from .core.base import QLayerBaseSingleInput
 
 

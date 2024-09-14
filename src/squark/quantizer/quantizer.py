@@ -2,10 +2,8 @@ from typing import overload
 
 from keras import ops
 from keras.api.layers import Layer
-from keras.api.saving import register_keras_serializable
 
-from ..config.quantizer import QuantizerConfig, all_quantizer_keys
-from .internal import DummyQuantizer, FixedPointQuantizerKBI, FixedPointQuantizerKIF, FloatPointQuantizer
+from .config import QuantizerConfig, all_quantizer_keys
 
 
 class Quantizer(Layer):
@@ -24,17 +22,7 @@ class Quantizer(Layer):
         self.supports_masking = True
         self.config, kwargs = self.get_quantizer_config_kwargs(*args, **kwargs)
         super().__init__(**kwargs)
-        match self.config.q_type:
-            case 'float':
-                self.quantizer = FloatPointQuantizer(**self.config)
-            case 'kif':
-                self.quantizer = FixedPointQuantizerKIF(**self.config)
-            case 'kbi':
-                self.quantizer = FixedPointQuantizerKBI(**self.config)
-            case 'dummy':
-                self.quantizer = DummyQuantizer()
-            case _:
-                raise ValueError(f"Unknown quantizer type: {self.config.q_type}")
+        self.quantizer = self.config.get_quantizer()
 
     def build(self, input_shape):
         self.quantizer.build(input_shape)

@@ -8,7 +8,7 @@ from keras.api.initializers import Constant
 from keras.api.layers import Dropout, MultiHeadAttention
 from keras.src.layers.attention.multi_head_attention import _build_attention_equation, _build_proj_equation
 
-from ..config.quantizer import QuantizerConfig
+from ..quantizer.config import QuantizerConfig
 from .core.base import QLayerBase
 from .core.einsum_dense import QEinsumDense
 from .softmax import QSoftmax

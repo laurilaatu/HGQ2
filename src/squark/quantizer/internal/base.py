@@ -1,8 +1,5 @@
-import random
-import typing
 from collections.abc import Sequence
 
-import keras
 import numpy as np
 from keras import ops
 from keras.src.layers import Layer

@@ -3,7 +3,7 @@ from math import log2, prod
 
 from keras import ops
 
-from ...config.quantizer import QuantizerConfig
+from ...quantizer.config import QuantizerConfig
 from ..core.base import QLayerBaseSingleInput
 
 

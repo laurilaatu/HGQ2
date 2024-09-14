@@ -5,7 +5,7 @@ from keras.src import backend, constraints, initializers, ops, regularizers
 from keras.src.backend.config import epsilon
 from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
-from ..config.quantizer import QuantizerConfig
+from ..quantizer.config import QuantizerConfig
 from .batch_normalization import QBatchNormalization
 from .core.einsum_dense import QEinsumDense
 

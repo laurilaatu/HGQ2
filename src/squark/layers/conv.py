@@ -2,8 +2,8 @@ from keras import ops
 from keras.src.layers.convolutional.base_conv import BaseConv
 from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
-from ..config.quantizer import QuantizerConfig
 from ..quantizer import Quantizer
+from ..quantizer.config import QuantizerConfig
 from .core.base import QLayerBaseSingleInput
 
 
