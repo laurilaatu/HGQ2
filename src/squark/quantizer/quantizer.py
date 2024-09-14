@@ -2,6 +2,7 @@ from typing import overload
 
 from keras import ops
 from keras.api.layers import Layer
+from keras.api.saving import deserialize_keras_object
 
 from .config import QuantizerConfig, all_quantizer_keys
 
@@ -62,6 +63,10 @@ class Quantizer(Layer):
         config = super().get_config()
         config['config'] = self.config
         return config
+
+    @classmethod
+    def from_config(cls, config):
+        return cls(**deserialize_keras_object(config))
 
     @property
     def bits(self):

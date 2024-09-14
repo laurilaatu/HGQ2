@@ -134,10 +134,13 @@ class DefaultBitwidthMapper(BitwidthMapperBase):
     """Default bitwidth mapper for HG quantizers."""
 
     def __init__(self, heterogeneous_axis: Sequence[int] | None = None, homogeneous_axis: Sequence[int] | None = None, **kwargs):
-        super().__init__(**kwargs)
-        assert (heterogeneous_axis is None) ^ (homogeneous_axis is None), "Only one of quantize_dims and skip_dims can be specified."
+        _shape_inferenced = kwargs.pop("_shape_inferenced", False)
+        if not _shape_inferenced:
+            assert (heterogeneous_axis is None) ^ (homogeneous_axis is None), "Only one of quantize_dims and skip_dims can be specified."
         self.heterogeneous_axis = heterogeneous_axis
         self.homogeneous_axis = homogeneous_axis
+        self._shape_inferenced = _shape_inferenced
+        super().__init__(**kwargs)
 
     def inference_weight_shape(self, input_shape):
         N = len(input_shape)
@@ -153,7 +156,7 @@ class DefaultBitwidthMapper(BitwidthMapperBase):
         for i in self.heterogeneous_axis:  # type: ignore
             assert input_shape[i] is not None, f"Unable to heterogeneously quantize axis {i} with unknown shape. Input shape: {input_shape}."
             weight_shape[i] = input_shape[i]
-
+        self._shape_inferenced = True
         return tuple(weight_shape)
 
     def bw_to_x(self, bw, x_shape):
@@ -166,4 +169,5 @@ class DefaultBitwidthMapper(BitwidthMapperBase):
         return dict(
             heterogeneous_axis=self.heterogeneous_axis,
             homogeneous_axis=self.homogeneous_axis,
+            _shape_inferenced=self._shape_inferenced,
         )
