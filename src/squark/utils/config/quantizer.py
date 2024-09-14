@@ -197,7 +197,7 @@ def all_places():
     return {k[1] for k in default_configs.keys()}
 
 
-@register_keras_serializable(package='qkeras_next')
+@register_keras_serializable(package='squark')
 class QuantizerConfig(Mapping):
 
     @overload

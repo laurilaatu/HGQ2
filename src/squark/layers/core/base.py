@@ -98,7 +98,7 @@ class QLayerMeta(ABCMeta):
                 return config
 
             cls.get_config = get_config
-            cls = register_keras_serializable(package='qkeras_next')(cls)
+            cls = register_keras_serializable(package='squark')(cls)
 
         return super().__call__(*args, **kwargs)  # type: ignore
 
@@ -204,7 +204,7 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
         return config
 
     def enable_lora(self, *args, **kwargs):
-        raise NotImplementedError("LoRA is not supported in qkeras_next.")
+        raise NotImplementedError("LoRA is not supported in s-quark.")
 
     @classmethod
     def from_config(cls, config):

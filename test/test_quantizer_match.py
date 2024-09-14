@@ -4,8 +4,8 @@ import cppyy
 import numpy as np
 import pytest
 
-from qkeras_next.quantizer.fixed_point_ops import get_fixed_quantizer
-from qkeras_next.quantizer.float_point_ops import float_quantize
+from squark.quantizer.fixed_point_ops import get_fixed_quantizer
+from squark.quantizer.float_point_ops import float_quantize
 
 
 @pytest.fixture(scope='session')
@@ -49,7 +49,8 @@ def c_quantize_float(x, M, E, E0):
 @pytest.mark.parametrize('E0', [1, 8])
 def test_fixed_quantizer_inference(fixed_round_mode, fixed_overflow_mode, k, i, f, M, E, E0, data, register_cpp):
 
-    arr_py_fixed = np.array(get_fixed_quantizer(fixed_round_mode, fixed_overflow_mode)(data, float(k), float(i), float(f), False))
+    quantizer = get_fixed_quantizer(fixed_round_mode, fixed_overflow_mode)
+    arr_py_fixed = np.array(quantizer(data, float(k), float(i), float(f), False, None))
     arr_py_float = np.array(float_quantize(data, M, E, E0))
     arr_c_fixed = c_quantize_fixed(data, k, i, f, fixed_round_mode, fixed_overflow_mode)
     arr_c_float = c_quantize_float(data, M, E, E0)

@@ -1,32 +1,41 @@
 [build-system]
-requires = ["setuptools>=61.0", "setuptools_scm>=8"]
+requires = ["setuptools>=67.8", "setuptools_scm>=8"]
 
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "qkeras_next"
-version = "0.0.1-dev"
+name = "s-quark"
+version = "0.0.1"
 authors = [{ name = "Chang Sun", email = "chsun@cern.ch" }]
 description = "QKeras Next"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { file = "LICENSE" }
+license = { text = "GNU Lesser General Public License v3 (LGPLv3)" }
+keywords = ["quantization", "keras", "qkeras", "hls4ml"]
 
 classifiers = [
   "Programming Language :: Python :: 3",
   "Operating System :: OS Independent",
-  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
-  "Development Status :: 1 - Planning",
+  "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+  "Development Status :: 2 - Pre-Alpha",
 ]
 
 [project.urls]
-repository = "https://github.com/calad0i/qkeras-next"
+repository = "https://github.com/calad0i/s-quark"
+
+
+[tool.setuptools]
+packages = ["squark", "qkeras"]
+include-package-data = true
+package-dir = { "" = "src" }
+
 
 [tool.setuptools_scm]
-write_to = "qkeras_next/_version.py"
+write_to = "src/squark/_version.py"
 
 [project.optional-dependencies]
-docs = ["sphinx", "sphinx-rtd-theme", "myst-parser", "qkeras", "pyparsing"]
+docs = ["sphinx", "sphinx-rtd-theme", "myst-parser", "pyparsing"]
+
 
 dependencies = ['keras>=3']
 
@@ -61,7 +70,7 @@ env = [
   "CLING_ENABLE_CUDA=0",
 ]
 
-addopts = "--cov=qkeras_next --cov-report=xml --cov-report=html"
+addopts = "--import-mode=importlib --cov=src/squark --cov-report=xml --cov-report=html"
 
 [tool.coverage.run]
 omit = ["*/_version.py"]

@@ -5,7 +5,7 @@ from keras.api.saving import register_keras_serializable
 from .misc import numbers
 
 
-@register_keras_serializable(package="qkeras_next")
+@register_keras_serializable(package="squark")
 class MonoL1(Regularizer):
     def __init__(self, l1: numbers):
         self.l1 = float(l1)

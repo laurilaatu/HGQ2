@@ -2,7 +2,7 @@ from keras import ops
 from keras.api import Model
 from keras.api.callbacks import Callback
 
-from qkeras_next.layers import QLayerBase
+from ...layers import QLayerBase
 
 
 class FreeEBOPs(Callback):
