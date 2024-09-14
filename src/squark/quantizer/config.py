@@ -467,6 +467,8 @@ class QuantizerConfig(Mapping):
         return {
             'q_type': self.q_type,
             'place': self.place,
+            'scaler': self.scaler,
+            'qnoise_factor': self.qnoise_factor,
             **self.config
         }
 
