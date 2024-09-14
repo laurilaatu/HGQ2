@@ -42,6 +42,10 @@ class BitwidthMapperBase:
     def get_config(self):
         raise NotImplementedError
 
+    @classmethod
+    def from_config(cls, config):
+        return cls(**config)
+
 
 def check_axis(axis: Sequence[int], ndim: int):
     """Given a list of axis, check that they are valid for a tensor of ndim dimensions. If valid, return the axis as a list of positive integers.

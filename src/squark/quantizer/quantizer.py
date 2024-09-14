@@ -37,6 +37,8 @@ class Quantizer(Layer):
         config = kwargs.pop('config', None)
         if isinstance(config, QuantizerConfig):
             return config, kwargs
+        else:
+            assert config is None, f"config must be a QuantizerConfig object, got {config}"
 
         _kwargs = {}
         for k in list(kwargs.keys()):
