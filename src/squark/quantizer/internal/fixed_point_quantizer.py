@@ -7,7 +7,7 @@ from keras.api.regularizers import Regularizer
 from keras.src import backend
 from keras.src.backend.config import epsilon
 
-from ..utils.constraints import MinMax
+from ...utils.constraints import MinMax
 from .base import TrainableQuantizerBase, numbers
 from .fixed_point_ops import get_fixed_quantizer, round_conv
 

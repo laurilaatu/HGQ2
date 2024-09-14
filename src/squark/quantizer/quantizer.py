@@ -5,13 +5,11 @@ from keras.api.layers import Layer
 from keras.api.saving import register_keras_serializable
 
 from ..utils.config.quantizer import QuantizerConfig, all_quantizer_keys
-from .base import DummyQuantizer
-from .fixed_point_quantizer import FixedPointQuantizerBase, FixedPointQuantizerKBI, FixedPointQuantizerKIF
-from .float_point_quantizer import FloatPointQuantizer
+from .internal import DummyQuantizer, FixedPointQuantizerKBI, FixedPointQuantizerKIF, FloatPointQuantizer
 
 
 class Quantizer(Layer):
-    """The generic quantizer layer. Supports float, fixed-point (KBI, KIF) quantization. Can be initialized with a QuantizerConfig object or with the quantizer type and its parameters.
+    """The generic quantizer layer, wraps internal quantizers to provide a universal interface. Supports float, fixed-point (KBI, KIF) quantization. Can be initialized with a QuantizerConfig object or with the quantizer type and its parameters.
     """
 
     @overload

@@ -8,7 +8,7 @@ from keras.api.initializers import Initializer
 from keras.api.regularizers import Regularizer
 from keras.api.saving import deserialize_keras_object, register_keras_serializable
 
-from ...quantizer.base import BitwidthMapperBase
+from ...quantizer.internal import BitwidthMapperBase
 from ...utils.constraints import Min, MinMax
 from ..misc import numbers
 from ..regularizers import MonoL1

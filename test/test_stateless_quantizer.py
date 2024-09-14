@@ -5,8 +5,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 
-from squark.quantizer.fixed_point_ops import get_fixed_quantizer
-from squark.quantizer.float_point_ops import float_decompose, float_quantize
+from squark.quantizer.internal import float_decompose, float_quantize, get_fixed_quantizer
 
 
 @pytest.fixture(scope='module')

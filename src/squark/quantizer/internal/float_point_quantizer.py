@@ -6,10 +6,10 @@ from keras.api.initializers import Constant, Initializer
 from keras.api.regularizers import Regularizer
 from keras.src import backend
 
-from ..utils.constraints import Min
+from ...utils.constraints import Min
 from .base import TrainableQuantizerBase, numbers
 from .fixed_point_ops import round_conv
-from .float_point_ops import float_decompose, float_quantize
+from .float_point_ops import float_quantize
 
 
 class FloatPointQuantizer(TrainableQuantizerBase):

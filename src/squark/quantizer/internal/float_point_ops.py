@@ -25,7 +25,7 @@ def float_quantize(x, m, e, e0=0.):
             (upstream,) = args
         dy = upstream
         mask_e = e_req != e_act
-        mask_m = e_req <= e_high
+        mask_m = e_req <= e_high  # type: ignore
         dm = ops.where(mask_m, scale * (sig - qsig) * dy * ops.log(2.), 0.)
         d_exp = ops.where(mask_e, (x - qx) * dy * ops.log(2.), 0.)
         de = d_exp * ops.log(2.) * _e_high  # type: ignore
