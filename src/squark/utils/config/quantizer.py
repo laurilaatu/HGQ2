@@ -15,7 +15,7 @@ from ..regularizers import MonoL1
 
 default_q_type = {
     'weight': 'kbi',
-    'input': 'kif',
+    'datalane': 'kif',
     'bias': 'kbi',
     'table': 'kbi',
 }
@@ -173,17 +173,17 @@ default_configs: dict[tuple[str, str], KIFConfig | KBIConfig | FloatConfig] = {
     ('kbi', 'weight'): kbi_weight_default,
     ('kbi', 'bias'): kbi_weight_default.copy(),
     ('kbi', 'table'): kbi_weight_default.copy(),
-    ('kbi', 'input'): kbi_input_default,
+    ('kbi', 'datalane'): kbi_input_default,
 
     ('kif', 'weight'): kif_weight_default,
     ('kif', 'bias'): kif_weight_default.copy(),
     ('kif', 'table'): kif_weight_default.copy(),
-    ('kif', 'input'): kif_input_default,
+    ('kif', 'datalane'): kif_input_default,
 
     ('float', 'weight'): float_weight_default,
     ('float', 'bias'): float_weight_default.copy(),
     ('float', 'table'): float_weight_default.copy(),
-    ('float', 'input'): float_input_default,
+    ('float', 'datalane'): float_input_default,
 }
 
 all_quantizer_keys = {k for v in default_configs.values() for k in v.keys()} | {'q_type', 'place'}
@@ -204,7 +204,7 @@ class QuantizerConfig(Mapping):
     def __init__(
         self,
         q_type: str = 'default',
-        place: str = 'input',
+        place: str = 'datalane',
         *,
         k0: numbers | bool | Initializer = True,
         b0: numbers | Initializer = 4,
@@ -220,14 +220,14 @@ class QuantizerConfig(Mapping):
         heterogeneous_axis: Sequence[int] | None = None,
         bw_mapper: BitwidthMapperBase | None = None,
     ) -> None:
-        """Fixed point quantizer config with KBI parametrization.
+        f"""Fixed point quantizer config with KBI parametrization.
 
         Parameters
         ----------
         q_type : str
             The type of the quantizer. 'kbi' for this implementation.
         place : str
-            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'input', and 'bias'.
+            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'datalane', 'bias', and 'table'.
         k0 : numbers | bool | Initializer, optional
             If the quantizer allows negative values, by default True
         b0 : numbers | Initializer, optional
@@ -261,7 +261,7 @@ class QuantizerConfig(Mapping):
     def __init__(
         self,
         q_type: str = 'default',
-        place: str = 'input',
+        place: str = 'datalane',
         *,
         k0: numbers | bool | Initializer = True,
         i0: numbers | Initializer = 4,
@@ -283,7 +283,7 @@ class QuantizerConfig(Mapping):
         q_type : str
             The type of the quantizer. 'kif' for this implementation.
         place : str
-            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'input', and 'bias'.
+            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'datalane', 'bias', and 'table'.
         k0 : numbers | bool | Initializer, optional
             If the quantizer allows negative values, by default True
         i0 : numbers | Initializer, optional
@@ -315,7 +315,7 @@ class QuantizerConfig(Mapping):
     def __init__(
         self,
         q_type: str = 'default',
-        place: str = 'input',
+        place: str = 'datalane',
         *,
         m0: numbers | Initializer = 2,
         e0: numbers | Initializer = 1,
@@ -336,7 +336,7 @@ class QuantizerConfig(Mapping):
         q_type : str
             The type of the quantizer. 'float' for this implementation.
         place : str
-            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'input', and 'bias'.
+            Where the quantizer is expected to be place. Only affects default config. One of 'weight', 'datalane', 'bias', and 'table'.
         m0 : numbers | Initializer, optional
             The initial value of the number of mantissa bits, by default 2
         e0 : numbers | Initializer, optional
@@ -362,7 +362,7 @@ class QuantizerConfig(Mapping):
         """
         ...
 
-    def __init__(self, q_type: str = 'default', place: str = 'input', **kwargs) -> None:
+    def __init__(self, q_type: str = 'default', place: str = 'datalane', **kwargs) -> None:
         """Universal quantizer config. The type of the quantizer is specified by the `type` argument.
 
         Parameters
@@ -370,7 +370,7 @@ class QuantizerConfig(Mapping):
         q_type : str
             The type of the quantizer. One of 'kbi', 'kif', 'float', 'default'. If 'default', the default quantizer type is used, by default 'kbi'. Can be overridden by the `default_q_type` argument of `QuantizerConfigScope`.
         place : str, optional
-            The default config to be loaded of the quantizer. One of 'weight', 'input', by default 'weight'
+            The default config to be loaded of the quantizer. One of 'weight', 'datalane', by default 'weight'
         """
 
         place = place.lower()

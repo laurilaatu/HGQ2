@@ -128,7 +128,7 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
         self._beta0 = beta0
 
         if self.enable_oq:
-            oq_conf = oq_conf or QuantizerConfig('default', 'input')
+            oq_conf = oq_conf or QuantizerConfig('default', 'datalane')
             self._oq = Quantizer(oq_conf, name=f"{self.name}_oq")
 
     @property
@@ -231,7 +231,7 @@ class QLayerBaseSingleInput(QLayerBase):
     ):
         super().__init__(**kwargs)
         if self.enable_iq:
-            iq_conf = iq_conf or QuantizerConfig('default', 'input')
+            iq_conf = iq_conf or QuantizerConfig('default', 'datalane')
             self._iq = Quantizer(iq_conf, name=f"{self.name}_iq")
 
     @property
@@ -297,7 +297,7 @@ class QLayerBaseMultiInputs(QLayerBase):
         super().__init__(**kwargs)
         self._iqs_confs = None
         if self.enable_iq:
-            self._iq_confs = iq_confs if iq_confs is not None else QuantizerConfig('default', 'input')
+            self._iq_confs = iq_confs if iq_confs is not None else QuantizerConfig('default', 'datalane')
 
     @property
     def iq(self):

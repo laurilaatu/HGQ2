@@ -19,7 +19,7 @@ class Quantizer(Layer):
         ...
 
     @overload
-    def __init__(self, q_type='default', place='input', **kwargs):
+    def __init__(self, q_type='default', place='datalane', **kwargs):
         ...
 
     def __init__(self, *args, **kwargs):
