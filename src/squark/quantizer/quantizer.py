@@ -21,6 +21,8 @@ class Quantizer(Layer):
     def __init__(self, *args, **kwargs):
         self.supports_masking = True
         self.config, kwargs = self.get_quantizer_config_kwargs(*args, **kwargs)
+        self.qnoise_factor = self.config.qnoise_factor
+        self.scaler = self.config.scaler
         super().__init__(**kwargs)
         self.quantizer = self.config.get_quantizer()
 
@@ -44,8 +46,15 @@ class Quantizer(Layer):
         return config, kwargs
 
     def call(self, inputs, training=None):
+        if self.scaler is not None:
+            inputs = inputs / self.scaler
         inputs = ops.cast(inputs, ops.dtype(inputs))  # cast to tensor, for sure... (tf is playing naughty here)
-        return self.quantizer.call(inputs, training=training)
+        outputs = self.quantizer.call(inputs, training=training)
+        if self.scaler is not None:
+            outputs = outputs * self.scaler  # type: ignore
+        if self.qnoise_factor is not None:
+            outputs = inputs + self.qnoise_factor * (outputs - inputs)  # type: ignore
+        return outputs
 
     def get_config(self):
         config = super().get_config()

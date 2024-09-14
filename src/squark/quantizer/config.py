@@ -184,7 +184,7 @@ default_configs: dict[tuple[str, str], KIFConfig | KBIConfig | FloatConfig] = {
     ('float', 'datalane'): float_input_default,
 }
 
-all_quantizer_keys = {k for v in default_configs.values() for k in v.keys()} | {'q_type', 'place'}
+all_quantizer_keys = {k for v in default_configs.values() for k in v.keys()} | {'q_type', 'place', 'scaler', 'qnoise_factor'}
 
 
 def all_quantizer_types():
@@ -217,6 +217,8 @@ class QuantizerConfig(Mapping):
         homogeneous_axis: Sequence[int] | None = None,
         heterogeneous_axis: Sequence[int] | None = None,
         bw_mapper: BitwidthMapperBase | None = None,
+        scaler: numbers | None = None,
+        qnoise_factor: float | None = None,
     ) -> None:
         f"""Fixed point quantizer config with KBI parametrization.
 
@@ -247,11 +249,15 @@ class QuantizerConfig(Mapping):
         i_decay_speed : numbers, optional
             The decay speed of the integer. Only used if `round_mode` is 'WRAP', by default -1
         homogeneous_axis : Sequence[int] | None, optional
-            The axes that are quantized homogeneously. Mutually exclusive with `heterogeneous_axis`. Only used if `bw_mapper` is `DefaultBitwidthMapper`, by default None
+            The axes that are quantized homogeneously. Mutually exclusive with `heterogeneous_axis`. Only used if `bw_mapper` is not set, by default None
         heterogeneous_axis : Sequence[int] | None, optional
-            The axes that are quantized heterogeneously. Mutually exclusive with `homogeneous_axis`. Only used if `bw_mapper` is `DefaultBitwidthMapper`, by default None
+            The axes that are quantized heterogeneously. Mutually exclusive with `homogeneous_axis`. Only used if `bw_mapper` is not set, by default None
         bw_mapper : BitwidthMapperBase | None, optional
             The bitwidth mapper to be used. Must be a subclass of `BitwidthMapperBase`. If None, the default bitwidth mapper is used with `homogeneous_axis` and `heterogeneous_axis` as arguments, by default None
+        scaler : numbers | None, optional
+            The scaling factor to be used. If None, no scaling is applied, by default None
+        qnoise_factor : float | None, optional
+            The fraction of quantization strength. If None, treat as full quantization noise, by default None
         """
         ...
 
@@ -273,6 +279,9 @@ class QuantizerConfig(Mapping):
         i_decay_speed: numbers = 0.01,
         homogeneous_axis: Sequence[int] | None = (0,),
         heterogeneous_axis: Sequence[int] | None = None,
+        bw_mapper: BitwidthMapperBase | None = None,
+        scaler: numbers | None = None,
+        qnoise_factor: float | None = None,
     ) -> None:
         """Fixed point quantizer config with KIF parametrization.
 
@@ -303,9 +312,15 @@ class QuantizerConfig(Mapping):
         i_decay_speed : numbers, optional
             The decay speed of the integer. Only used if `round_mode` is 'WRAP', by default 0.01
         homogeneous_axis : Sequence[int] | None, optional
-            The axes that are quantized homogeneously. Mutually exclusive with `heterogeneous_axis`. Only used if `bw_mapper` is `DefaultBitwidthMapper`, by default (0,)
+            The axes that are quantized homogeneously. Mutually exclusive with `heterogeneous_axis`. Only used if `bw_mapper` is not set, by default (0,)
         heterogeneous_axis : Sequence[int] | None, optional
-            The axes that are quantized heterogeneously. Mutually exclusive with `homogeneous_axis`. Only used if `bw_mapper` is `DefaultBitwidthMapper`, by default None
+            The axes that are quantized heterogeneously. Mutually exclusive with `homogeneous_axis`. Only used if `bw_mapper` is not set, by default None
+        bw_mapper : BitwidthMapperBase | None, optional
+            The bitwidth mapper to be used. Must be a subclass of `BitwidthMapperBase`. If None, the default bitwidth mapper is used with `homogeneous_axis` and `heterogeneous_axis` as arguments, by default None
+        scaler : numbers | None, optional
+            The scaling factor to be used. If None, no scaling is applied, by default None
+        qnoise_factor : float | None, optional
+            The fraction of quantization strength. If None, treat as full quantization noise, by default None
         """
         ...
 
@@ -326,6 +341,9 @@ class QuantizerConfig(Mapping):
         e0r: Regularizer | None = None,
         homogeneous_axis: Sequence[int] | None = (),
         heterogeneous_axis: Sequence[int] | None = None,
+        bw_mapper: BitwidthMapperBase | None = None,
+        scaler: numbers | None = None,
+        qnoise_factor: float | None = None,
     ) -> None:
         """Floating point quantizer config.
 
@@ -354,13 +372,26 @@ class QuantizerConfig(Mapping):
         e0r : Regularizer | None, optional
             Regularizer for the number of exponent bits for the first axis, by default None
         homogeneous_axis : Sequence[int] | None, optional
-            The axes that are quantized homogeneously. Mutually exclusive with `heterogeneous_axis`. Only used if `bw_mapper` is `DefaultBitwidthMapper`, by default ()
+            The axes that are quantized homogeneously. Mutually exclusive with `heterogeneous_axis`. Only used if `bw_mapper` is not set, by default ()
         heterogeneous_axis : Sequence[int] | None, optional
-            The axes that are quantized heterogeneously. Mutually exclusive with `homogeneous_axis`. Only used if `bw_mapper` is `DefaultBitwidthMapper`, by default None
+            The axes that are quantized heterogeneously. Mutually exclusive with `homogeneous_axis`. Only used if `bw_mapper` is not set, by default None
+        bw_mapper : BitwidthMapperBase | None, optional
+            The bitwidth mapper to be used. Must be a subclass of `BitwidthMapperBase`. If None, the default bitwidth mapper is used with `homogeneous_axis` and `heterogeneous_axis` as arguments, by default None
+        scaler : numbers | None, optional
+            The scaling factor to be used. If None, no scaling is applied, by default None
+        qnoise_factor : float | None, optional
+            The fraction of quantization strength. If None, treat as full quantization noise, by default None
         """
         ...
 
-    def __init__(self, q_type: str = 'default', place: str = 'datalane', **kwargs) -> None:
+    def __init__(
+            self,
+            q_type: str = 'default',
+            place: str = 'datalane',
+            scaler: numbers | None = None,
+            qnoise_factor: float | None = None,
+            **kwargs
+    ) -> None:
         """Universal quantizer config. The type of the quantizer is specified by the `type` argument.
 
         Parameters
@@ -369,6 +400,10 @@ class QuantizerConfig(Mapping):
             The type of the quantizer. One of 'kbi', 'kif', 'float', 'default'. If 'default', the default quantizer type is used, by default 'kbi'. Can be overridden by the `default_q_type` argument of `QuantizerConfigScope`.
         place : str, optional
             The default config to be loaded of the quantizer. One of 'weight', 'datalane', by default 'weight'
+        scaler : numbers | None, optional
+            The scaling factor to be used. If None, no scaling is applied, by default None
+        qnoise_factor : float | None, optional
+            The fraction of quantization strength. If None, treat as full quantization noise, by default None
 
         **kwargs : Specific parameters for different quantizer types.
         """
@@ -384,8 +419,16 @@ class QuantizerConfig(Mapping):
 
         if q_type == 'dummy':  # Special case for dummy quantizer
             self.config = {}
-
             return
+
+        self.scaler = None
+        self.qnoise_factor = None
+        if scaler is not None:
+            assert scaler != 0, "scaler must not be 0."
+            self.scaler = float(scaler)
+        if qnoise_factor is not None:
+            assert 0 <= qnoise_factor <= 1, "qnoise_factor must be between 0 and 1."
+            self.qnoise_factor = float(qnoise_factor) if qnoise_factor is not None else None
 
         assert kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None, \
             "homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them."
