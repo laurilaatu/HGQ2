@@ -3,7 +3,7 @@ from keras.api.constraints import Constraint
 from keras.api.saving import register_keras_serializable
 from keras.src import backend
 
-from .misc import numbers
+from ..utils.misc import numbers
 
 
 @register_keras_serializable(package="squark")

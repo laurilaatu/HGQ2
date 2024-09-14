@@ -2,7 +2,7 @@ from keras import ops
 from keras.api.regularizers import Regularizer
 from keras.api.saving import register_keras_serializable
 
-from .misc import numbers
+from ..utils.misc import numbers
 
 
 @register_keras_serializable(package="squark")
