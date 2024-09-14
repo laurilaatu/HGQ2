@@ -124,7 +124,7 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
             _new_i = self.get_minimal_i(inputs)
             # Enforce constraints on i in case i is not trainable (WRAP mode)
             if self._i.constraint is not None:
-                _new_i = self.i.constraint(_new_i)
+                _new_i = self._i.constraint(_new_i)
             current_i = ops.cast(self._i, ops.dtype(self._i))
             if training:
                 new_i = ops.stop_gradient(ops.maximum((current_i - self.i_decay_speed), _new_i))
