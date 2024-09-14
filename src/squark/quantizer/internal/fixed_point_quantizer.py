@@ -1,5 +1,4 @@
 import keras
-import numpy as np
 from keras import ops
 from keras.api.constraints import Constraint
 from keras.api.initializers import Constant, Initializer
@@ -31,6 +30,7 @@ def minimal_i_given_xf(x, f, symmetric=False):
 
 
 class FixedPointQuantizerBase(TrainableQuantizerBase):
+    """Abstract base class for all fixed-point quantizers."""
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -141,7 +141,32 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
 
 
 class FixedPointQuantizerKBI(FixedPointQuantizerBase):
-    """Abstract base class for all fixed-point quantizers."""
+    """Internal quantizer for fixed-point quantization parameterized by keep_negative, bits, and integer bits.
+    Can be used as a quantizer in Keras layers, but is usually wrapped by a `Quantizer` class to provide a consistent interface.
+
+    Parameters
+    ----------
+    k0 : numbers | bool | Initializer
+        Initial value for the keep_negative parameter. Not trained, but can be manually updated.
+    b0 : numbers | Initializer
+        Initial value for the number of bits. Trainable.
+    i0 : numbers | Initializer
+        Initial value for the number of integer bits. Trainable.
+    round_mode : str
+        Rounding mode, one of 'RND', 'TRN', 'RND_CONV', 'S_RND', 'S_RND_CONV'.
+    overflow_mode : str
+        Overflow mode, one of 'WRAP', 'SAT', 'SYM', 'SAT_SYM'.
+    bc : Constraint | None
+        Constraint for the number of bits.
+    ic : Constraint | None
+        Constraint for the number of integer bits.
+    br : Regularizer | None
+        Regularizer for the number of bits.
+    ir : Regularizer | None
+        Regularizer for the number of integer bits.
+    i_decay_speed : numbers
+        Speed of decay for the integer bits in WRAP mode, per step. If set to negative, enable tracing of maximum number even not in training mode.
+    """
 
     def __init__(
         self,
@@ -154,7 +179,7 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
         ic: Constraint | None = None,
         br: Regularizer | None = None,
         ir: Regularizer | None = None,
-        i_decay_speed: numbers = np.inf,
+        i_decay_speed: numbers = float('inf'),
         **kwargs
     ):
         if not isinstance(k0, Initializer) and not isinstance(b0, Initializer) and not isinstance(i0, Initializer):
@@ -241,7 +266,32 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
 
 
 class FixedPointQuantizerKIF(FixedPointQuantizerBase):
-    """Abstract base class for all fixed-point quantizers."""
+    """Internal quantizer for fixed-point quantization parameterized by keep_negative, integer bits, and fractional bits.
+    Can be used as a quantizer in Keras layers, but is usually wrapped by a `Quantizer` class to provide a consistent interface.
+
+    Parameters
+    ----------
+    k0 : numbers | bool | Initializer
+        Initial value for the keep_negative parameter. Not trained, but can be manually updated.
+    i0 : numbers | Initializer
+        Initial value for the number of integer bits. Trainable.
+    f0 : numbers | Initializer
+        Initial value for the number of fractional bits. Trainable.
+    round_mode : str
+        Rounding mode, one of 'RND', 'TRN', 'RND_CONV', 'S_RND', 'S_RND_CONV'.
+    overflow_mode : str
+        Overflow mode, one of 'WRAP', 'SAT', 'SYM', 'SAT_SYM'.
+    ic : Constraint | None
+        Constraint for the number of integer bits.
+    fc : Constraint | None
+        Constraint for the number of fractional bits.
+    ir : Regularizer | None
+        Regularizer for the number of integer bits.
+    fr : Regularizer | None
+        Regularizer for the number of fractional bits.
+    i_decay_speed : numbers
+        Speed of decay for the integer bits in WRAP mode, per step. If set to negative, enable tracing of maximum number even not in training mode.
+    """
 
     def __init__(
         self,
@@ -254,7 +304,7 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
         fc: Constraint | None = None,
         ir: Regularizer | None = None,
         fr: Regularizer | None = None,
-        i_decay_speed: numbers = np.inf,
+        i_decay_speed: numbers = float('inf'),
         **kwargs
     ):
         if not isinstance(k0, Initializer) and not isinstance(i0, Initializer) and not isinstance(f0, Initializer):

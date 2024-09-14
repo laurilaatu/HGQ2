@@ -13,6 +13,34 @@ from .float_point_ops import float_quantize
 
 
 class FloatPointQuantizer(TrainableQuantizerBase):
+    """Internal class for float-point quantizer. Follows IEEE 754 standard with subnormal numbers, but without NaNs and infinities. The quantizer is defined by three parameters: mantissa, exponent, and exponent offset. Mantissa bits are excluding the sign bit. Exponent bits are including the sign bit. Exponent offset is added to the signed exponent.
+
+    The sign bit always presents in this quantizer. However, as the number of mantissa bits reaches -1, the quantizer will always produce zero.
+
+    Can be used as a quantizer in Keras layers, but is usually wrapped by a `Quantizer` class to provide a consistent interface.
+
+    Parameters
+    ----------
+    m0 : numbers | Initializer
+        Initial value of the number of mantissa bits. Trainable.
+    e0 : numbers | Initializer
+        Initial value of the number of exponent bits. Trainable.
+    e00 : numbers | Initializer, optional
+        Initial value of the exponent offset. Default is 0. Trainable.
+    mc : Constraint, optional
+        Constraint for the number of mantissa bits. Default is Min(-1).
+    ec : Constraint, optional
+        Constraint for the number of exponent bits. Default is keras.constraints.NonNeg().
+    e0c : Constraint, optional
+        Constraint for the exponent offset. Default is None.
+    mr : Regularizer, optional
+        Regularizer for the number of mantissa bits. Default is None.
+    er : Regularizer, optional
+        Regularizer for the number of exponent bits. Default is None.
+    e0r : Regularizer, optional
+        Regularizer for the exponent offset. Default is None.
+    """
+
     def __init__(
         self,
         m0: numbers | Initializer,
