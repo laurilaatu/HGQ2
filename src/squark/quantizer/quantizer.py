@@ -4,7 +4,7 @@ from keras import ops
 from keras.api.layers import Layer
 from keras.api.saving import register_keras_serializable
 
-from ..utils.config.quantizer import QuantizerConfig, all_quantizer_keys
+from ..config.quantizer import QuantizerConfig, all_quantizer_keys
 from .internal import DummyQuantizer, FixedPointQuantizerKBI, FixedPointQuantizerKIF, FloatPointQuantizer
 
 

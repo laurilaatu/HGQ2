@@ -11,8 +11,8 @@ from keras.api.layers import Concatenate, Layer
 from keras.api.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
 from keras.src import backend
 
+from ...config.layer import global_config
 from ...quantizer import Quantizer, QuantizerConfig, numbers
-from ...utils.config.layer import global_config
 
 
 def get_method_source(cls, method_name):

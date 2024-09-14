@@ -2,8 +2,8 @@ from keras import ops
 from keras.api.layers import EinsumDense
 from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
+from ...config.quantizer import QuantizerConfig
 from ...quantizer import Quantizer
-from ...utils.config.quantizer import QuantizerConfig
 from .base import QLayerBaseSingleInput
 
 

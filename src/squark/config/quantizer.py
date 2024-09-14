@@ -8,10 +8,10 @@ from keras.api.initializers import Initializer
 from keras.api.regularizers import Regularizer
 from keras.api.saving import deserialize_keras_object, register_keras_serializable
 
-from ...quantizer.internal import BitwidthMapperBase
-from ...utils.constraints import Min, MinMax
-from ..misc import numbers
-from ..regularizers import MonoL1
+from ..quantizer.internal import BitwidthMapperBase
+from ..utils.constraints import Min, MinMax
+from ..utils.misc import numbers
+from ..utils.regularizers import MonoL1
 
 default_q_type = {
     'weight': 'kbi',

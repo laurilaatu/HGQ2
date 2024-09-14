@@ -1,8 +1,8 @@
 from keras import ops
 from keras.api.layers import Dense
 
+from ...config.quantizer import QuantizerConfig
 from ...quantizer import Quantizer
-from ...utils.config.quantizer import QuantizerConfig
 from .base import QLayerBaseSingleInput
 
 

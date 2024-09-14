@@ -1,3 +1,3 @@
-from ..utils.config.quantizer import QuantizerConfig
+from ..config.quantizer import QuantizerConfig
 from .internal import numbers
 from .quantizer import Quantizer
