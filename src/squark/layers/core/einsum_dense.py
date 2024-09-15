@@ -4,6 +4,7 @@ from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
 from ...quantizer import Quantizer
 from ...quantizer.config import QuantizerConfig
+from ...utils.misc import gather_vars_to_kwargs
 from .base import QLayerBaseSingleInput
 
 
@@ -25,21 +26,8 @@ class QEinsumDense(QLayerBaseSingleInput, EinsumDense):
         bq_conf: None | QuantizerConfig = None,
         **kwargs,
     ):
-        super().__init__(
-            equation=equation,
-            output_shape=output_shape,
-            activation=activation,
-            bias_axes=bias_axes,
-            kernel_initializer=kernel_initializer,
-            bias_initializer=bias_initializer,
-            kernel_regularizer=kernel_regularizer,
-            bias_regularizer=bias_regularizer,
-            kernel_constraint=kernel_constraint,
-            bias_constraint=bias_constraint,
-            lora_rank=None,
-            iq_conf=iq_conf,
-            **kwargs,
-        )
+        kwargs = gather_vars_to_kwargs('self|kq_conf|bq_conf')
+        super().__init__(lora_rank=None, **kwargs)
 
         kq_conf = kq_conf or QuantizerConfig('default', 'weight')
         self._kq = Quantizer(kq_conf, name=f"{self.name}_kq")

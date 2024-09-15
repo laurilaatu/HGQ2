@@ -4,6 +4,7 @@ from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
 from ..quantizer import Quantizer
 from ..quantizer.config import QuantizerConfig
+from ..utils.misc import gather_vars_to_kwargs
 from .core.base import QLayerBaseSingleInput
 
 
@@ -33,28 +34,8 @@ class QBaseConv(QLayerBaseSingleInput, BaseConv):
         bq_conf: None | QuantizerConfig = None,
         **kwargs,
     ):
-        super().__init__(
-            rank=rank,
-            filters=filters,
-            kernel_size=kernel_size,
-            strides=strides,
-            padding=padding,
-            data_format=data_format,
-            dilation_rate=dilation_rate,
-            groups=groups,
-            activation=activation,
-            use_bias=use_bias,
-            kernel_initializer=kernel_initializer,
-            bias_initializer=bias_initializer,
-            kernel_regularizer=kernel_regularizer,
-            bias_regularizer=bias_regularizer,
-            activity_regularizer=activity_regularizer,
-            kernel_constraint=kernel_constraint,
-            bias_constraint=bias_constraint,
-            lora_rank=None,
-            iq_conf=iq_conf,
-            **kwargs,
-        )
+        kwargs = gather_vars_to_kwargs('self|kq_conf|bq_conf|parallelization_factor')
+        super().__init__(**kwargs)
 
         kq_conf = kq_conf or QuantizerConfig('default', 'weight')
         self._kq = Quantizer(kq_conf, name=f"{self.name}_kq")
@@ -164,29 +145,8 @@ class QConv1D(QBaseConv):
         bq_conf: None | QuantizerConfig = None,
         **kwargs
     ):
-        super().__init__(
-            rank=1,
-            filters=filters,
-            kernel_size=kernel_size,
-            strides=strides,
-            padding=padding,
-            data_format=data_format,
-            dilation_rate=dilation_rate,
-            groups=groups,
-            activation=activation,
-            use_bias=use_bias,
-            kernel_initializer=kernel_initializer,
-            bias_initializer=bias_initializer,
-            kernel_regularizer=kernel_regularizer,
-            bias_regularizer=bias_regularizer,
-            activity_regularizer=activity_regularizer,
-            kernel_constraint=kernel_constraint,
-            bias_constraint=bias_constraint,
-            kq_conf=kq_conf,
-            iq_conf=iq_conf,
-            bq_conf=bq_conf,
-            **kwargs
-        )
+        kwargs = gather_vars_to_kwargs('self')
+        super().__init__(rank=1, **kwargs)
 
     def _compute_causal_padding(self):
         left_pad = self.dilation_rate[0] * (self.kernel_size[0] - 1)
@@ -251,29 +211,8 @@ class QConv2D(QBaseConv):
         bq_conf: None | QuantizerConfig = None,
         **kwargs
     ):
-        super().__init__(
-            rank=2,
-            filters=filters,
-            kernel_size=kernel_size,
-            strides=strides,
-            padding=padding,
-            data_format=data_format,
-            dilation_rate=dilation_rate,
-            groups=groups,
-            activation=activation,
-            use_bias=use_bias,
-            kernel_initializer=kernel_initializer,
-            bias_initializer=bias_initializer,
-            kernel_regularizer=kernel_regularizer,
-            bias_regularizer=bias_regularizer,
-            activity_regularizer=activity_regularizer,
-            kernel_constraint=kernel_constraint,
-            bias_constraint=bias_constraint,
-            kq_conf=kq_conf,
-            iq_conf=iq_conf,
-            bq_conf=bq_conf,
-            **kwargs
-        )
+        kwargs = gather_vars_to_kwargs('self')
+        super().__init__(rank=2, **kwargs)
 
 
 class QConv3D(QBaseConv):
@@ -300,26 +239,5 @@ class QConv3D(QBaseConv):
         bq_conf: None | QuantizerConfig = None,
         **kwargs
     ):
-        super().__init__(
-            rank=3,
-            filters=filters,
-            kernel_size=kernel_size,
-            strides=strides,
-            padding=padding,
-            data_format=data_format,
-            dilation_rate=dilation_rate,
-            groups=groups,
-            activation=activation,
-            use_bias=use_bias,
-            kernel_initializer=kernel_initializer,
-            bias_initializer=bias_initializer,
-            kernel_regularizer=kernel_regularizer,
-            bias_regularizer=bias_regularizer,
-            activity_regularizer=activity_regularizer,
-            kernel_constraint=kernel_constraint,
-            bias_constraint=bias_constraint,
-            kq_conf=kq_conf,
-            iq_conf=iq_conf,
-            bq_conf=bq_conf,
-            **kwargs
-        )
+        kwargs = gather_vars_to_kwargs('self')
+        super().__init__(rank=3, **kwargs)

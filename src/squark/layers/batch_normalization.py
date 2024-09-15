@@ -4,6 +4,7 @@ from keras.src.backend import standardize_dtype
 
 from ..quantizer import Quantizer
 from ..quantizer.config import QuantizerConfig
+from ..utils.misc import gather_vars_to_kwargs
 from .core.base import QLayerBaseSingleInput
 
 
@@ -54,24 +55,9 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
         bq_conf: None | QuantizerConfig = None,
         **kwargs,
     ):
-        super().__init__(
-            axis=axis,
-            momentum=momentum,
-            epsilon=epsilon,
-            center=center,
-            scale=scale,
-            beta_initializer=beta_initializer,
-            gamma_initializer=gamma_initializer,
-            moving_mean_initializer=moving_mean_initializer,
-            moving_variance_initializer=moving_variance_initializer,
-            beta_regularizer=beta_regularizer,
-            gamma_regularizer=gamma_regularizer,
-            beta_constraint=beta_constraint,
-            gamma_constraint=gamma_constraint,
-            synchronized=synchronized,
-            iq_conf=iq_conf,
-            **kwargs
-        )
+        kwargs = gather_vars_to_kwargs('self|kq_conf|bq_conf')
+        super().__init__(**kwargs)
+
         kq_conf = kq_conf or QuantizerConfig('default', 'weight')
         self._kq = Quantizer(kq_conf, name=f"{self.name}_kq")
         bq_conf = bq_conf or QuantizerConfig('default', 'bias')
@@ -116,7 +102,7 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
             bn_beta = 1
 
         scale = bn_gamma / ops.sqrt(variance + self.epsilon)  # type: ignore
-        offset = bn_beta - mean * scale
+        offset = bn_beta - mean * scale  # type: ignore
 
         return scale, offset
 
@@ -149,7 +135,7 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
             bn_beta = 1
 
         scale = bn_gamma / ops.sqrt(variance + self.epsilon)  # type: ignore
-        offset = bn_beta - mean * scale
+        offset = bn_beta - mean * scale  # type: ignore
 
         return scale, offset
 

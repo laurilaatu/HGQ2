@@ -36,7 +36,6 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         kernel_constraint=None,
         bias_constraint=None,
         seed=None,
-        stable_softmax=True,
         qkvo_iq_conf: QuantizerConfig | None = None,
         qkvo_kq_conf: QuantizerConfig | None = None,
         qkvo_bq_conf: QuantizerConfig | None = None,
@@ -47,23 +46,23 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         softmax_inv_iq_conf: QuantizerConfig | None = None,
         softmax_inv_oq_conf: QuantizerConfig | None = None,
         softmax_oq_conf: QuantizerConfig | None = None,
+        stable_softmax=True,
         softmax_allow_heterogeneous_table: bool = False,
         parallelization_factor=-1,
         **kwargs,
     ):
-        kwargs = gather_vars_to_kwargs()
-        del kwargs['self']
+        kwargs = gather_vars_to_kwargs('self|.+q_conf')
 
-        self._qkvo_iq_conf = kwargs.pop('qkvo_iq_conf') or QuantizerConfig(place='datalane')
-        self._qkvo_kq_conf = kwargs.pop('qkvo_kq_conf') or QuantizerConfig(place='weight')
-        self._qkvo_bq_conf = kwargs.pop('qkvo_bq_conf') or QuantizerConfig(place='bias')
-        self._qkvo_oq_conf = kwargs.pop('qkvo_oq_conf') or QuantizerConfig(place='datalane')
-        self._softmax_iq_conf = kwargs.pop('softmax_iq_conf') or QuantizerConfig(place='datalane')
-        self._softmax_exp_iq_conf = kwargs.pop('softmax_exp_iq_conf') or QuantizerConfig(place='datalane')
-        self._softmax_exp_oq_conf = kwargs.pop('softmax_exp_oq_conf') or QuantizerConfig(place='table')
-        self._softmax_inv_iq_conf = kwargs.pop('softmax_inv_iq_conf') or QuantizerConfig(place='datalane')
-        self._softmax_inv_oq_conf = kwargs.pop('softmax_inv_oq_conf') or QuantizerConfig(place='table')
-        self._softmax_oq_conf = kwargs.pop('softmax_oq_conf') or QuantizerConfig(place='datalane')
+        self._qkvo_iq_conf = qkvo_iq_conf or QuantizerConfig(place='datalane')
+        self._qkvo_kq_conf = qkvo_kq_conf or QuantizerConfig(place='weight')
+        self._qkvo_bq_conf = qkvo_bq_conf or QuantizerConfig(place='bias')
+        self._qkvo_oq_conf = qkvo_oq_conf or QuantizerConfig(place='datalane')
+        self._softmax_iq_conf = softmax_iq_conf or QuantizerConfig(place='datalane')
+        self._softmax_exp_iq_conf = softmax_exp_iq_conf or QuantizerConfig(place='datalane')
+        self._softmax_exp_oq_conf = softmax_exp_oq_conf or QuantizerConfig(place='table')
+        self._softmax_inv_iq_conf = softmax_inv_iq_conf or QuantizerConfig(place='datalane')
+        self._softmax_inv_oq_conf = softmax_inv_oq_conf or QuantizerConfig(place='table')
+        self._softmax_oq_conf = softmax_oq_conf or QuantizerConfig(place='datalane')
         self._softmax_allow_heterogeneous_table = kwargs.pop('softmax_allow_heterogeneous_table')
         self.parallelization_factor = kwargs.pop('parallelization_factor')
         self._stable_softmax = kwargs.pop('stable_softmax')
