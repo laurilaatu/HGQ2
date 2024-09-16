@@ -1,5 +1,7 @@
 import inspect
+import types
 from collections.abc import Sequence
+from functools import wraps
 
 import keras
 import numpy as np
@@ -84,6 +86,7 @@ class quantized_bits(QuantizerConfig):
             use_variables = self.trainable
         if self.trainable:
             assert use_variables, "use_variables must be True if alpha is set to 'trainable_po2'"
+        self.use_variables = use_variables
 
         assert var_name is None, "var_name is not supported"
         assert use_ste, "only use_ste=True is supported"
@@ -137,12 +140,24 @@ class quantized_bits(QuantizerConfig):
         return bool(self.config['k0'])
 
     def get_quantizer(self):
-        if self.trainable:
-            quantizer = FixedPointQuantizerKBI(**self.config)
-            quantizer._b.trainable = False  # only train integer bits
+        if not self.use_variables:
+            return FrozenFixedPointQuantizer(**self.config)  # type: ignore
+
+        quantizer = FixedPointQuantizerKBI(**self.config)
+        if not self.trainable:
             return quantizer
 
-        return FrozenFixedPointQuantizer(**self.config)  # type: ignore
+        # Make the bits non-trainable by default to match qkeras behavior
+        original_setattr_hook = quantizer._setattr_hook
+
+        @wraps(original_setattr_hook)
+        def _setattr_hook(self, name, value):
+            if name == '_b':
+                value.trainable = False
+            return original_setattr_hook(name, value)
+        quantizer._setattr_hook = types.MethodType(_setattr_hook, quantizer)
+
+        return quantizer
 
     def __str__(self):
         k, b, i = self.config['k0'], self.config['b0'], self.config['i0']
