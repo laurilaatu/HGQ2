@@ -11,6 +11,6 @@ class FreeEBOPs(Callback):
         assert isinstance(self.model, Model)
         ebops = 0
         for layer in self.model._flatten_layers():
-            if isinstance(layer, QLayerBase):
+            if isinstance(layer, QLayerBase) and layer.enable_ebops:
                 ebops += int(ops.convert_to_numpy(layer._ebops))
         logs['ebops'] = ebops
