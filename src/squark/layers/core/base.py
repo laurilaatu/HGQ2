@@ -244,7 +244,7 @@ class QLayerBaseSingleInput(QLayerBase):
 
     def build(self, input_shape):
         super().build(input_shape)
-        if self._iq is not None and not self._iq.built:
+        if self.enable_iq and not self._iq.built:
             self.iq.build(input_shape)
 
     def get_config(self):

@@ -184,10 +184,12 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
         return self.get_fused_qkernel_and_qbias(training=False, mean=mean, var=var)[1]
 
     def call(self, inputs, training=None):  # type: ignore
-        qinputs = self.iq(inputs, training=training)
+
+        if self.enable_iq:
+            inputs = self.iq(inputs, training=training)
 
         qkernel = self.kq(self.kernel, training=training)
-        x = ops.einsum(self.equation, qinputs, qkernel)
+        x = ops.einsum(self.equation, inputs, qkernel)
         if training and self.trainable:
             mean, var = ops.moments(
                 x, self._reduction_axes, keepdims=False, synchronized=self.synchronized
@@ -203,7 +205,7 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
 
         qkernel, qbias = self.get_fused_qkernel_and_qbias(training, mean, var)
 
-        x = ops.einsum(self.equation, qinputs, qkernel) + qbias
+        x = ops.einsum(self.equation, inputs, qkernel) + qbias
         if self.activation is not None:
             x = self.activation(x)
         return x

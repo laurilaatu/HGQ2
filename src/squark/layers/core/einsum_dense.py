@@ -53,8 +53,9 @@ class QEinsumDense(QLayerBaseSingleInput, EinsumDense):
 
     def call(self, inputs, training=None):
         qkernel = self.kq(self._kernel, training=training)
-        qinputs = self.iq(inputs, training=training)
-        x = ops.einsum(self.equation, qinputs, qkernel)
+        if self.enable_iq:
+            inputs = self.iq(inputs, training=training)
+        x = ops.einsum(self.equation, inputs, qkernel)
         if self.bias is not None:
             assert self.bq is not None
             x += self.bq(self.bias, training=training)

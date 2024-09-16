@@ -156,10 +156,11 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
             # out BN for mixed precision.
             inputs = ops.cast(inputs, "float32")
 
-        qinputs = self.iq(inputs, training=training)
+        if self.enable_iq:
+            inputs = self.iq(inputs, training=training)
 
         if training:
-            scale, offset = self._scaler_and_offset_train(qinputs, mask)
+            scale, offset = self._scaler_and_offset_train(inputs, mask)
         else:
             scale, offset = self._scaler_and_offset()
 
@@ -171,7 +172,7 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
         qscale = ops.reshape(qscale, shape)
         qoffset = ops.reshape(qoffset, shape)
 
-        outputs = qinputs * qscale + qoffset  # type: ignore
+        outputs = inputs * qscale + qoffset  # type: ignore
 
         if input_dtype in ("float16", "bfloat16"):
             outputs = ops.cast(outputs, input_dtype)

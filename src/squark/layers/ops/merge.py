@@ -9,8 +9,9 @@ from ..core.base import QLayerBaseMultiInputs
 
 class QMerge(QLayerBaseMultiInputs, Merge):  # type: ignore
     def call(self, inputs, training=None):
-        qinputs = self.iq(inputs, training=training)
-        r = super().call(qinputs)
+        if self.enable_iq:
+            inputs = self.iq(inputs, training=training)
+        r = super().call(inputs)
         return r
 
 

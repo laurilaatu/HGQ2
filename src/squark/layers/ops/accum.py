@@ -36,8 +36,9 @@ class QSum(QLayerBaseSingleInput):
         return ebops
 
     def call(self, inputs, training=None):
-        qinput = self.iq(inputs, training=training)
-        r = ops.sum(qinput, axis=self.axis, keepdims=self.keepdims) * self.scale  # type: ignore
+        if self.enable_iq:
+            inputs = self.iq(inputs, training=training)
+        r = ops.sum(inputs, axis=self.axis, keepdims=self.keepdims) * self.scale  # type: ignore
         return r
 
 

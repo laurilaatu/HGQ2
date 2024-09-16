@@ -60,10 +60,11 @@ class QBaseConv(QLayerBaseSingleInput, BaseConv):
 
     def call(self, inputs, training=None):
 
-        qinputs = self.iq(inputs, training=training)
+        if self.enable_iq:
+            inputs = self.iq(inputs, training=training)
         qkernel = self.kq(self._kernel, training=training)
         outputs = self.convolution_op(
-            qinputs,
+            inputs,
             qkernel,
         )
         if self.use_bias:
