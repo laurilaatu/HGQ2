@@ -420,10 +420,6 @@ class QuantizerConfig(Mapping):
         self.place = place
         self.q_type = q_type
 
-        if q_type == 'dummy':  # Special case for dummy quantizer
-            self.config = {}
-            return
-
         self.scaler = None
         self.qnoise_factor = None
         if scaler is not None:
@@ -432,6 +428,10 @@ class QuantizerConfig(Mapping):
         if qnoise_factor is not None:
             assert 0 <= qnoise_factor <= 1, "qnoise_factor must be between 0 and 1."
             self.qnoise_factor = float(qnoise_factor) if qnoise_factor is not None else None
+
+        if q_type == 'dummy':  # Special case for dummy quantizer
+            self.config = {}
+            return
 
         assert kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None, \
             "homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them."

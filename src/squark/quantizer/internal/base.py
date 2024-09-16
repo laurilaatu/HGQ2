@@ -128,6 +128,9 @@ class DummyQuantizer(TrainableQuantizerBase):
     def epsilon(self):
         return backend.epsilon()
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}(name={self.name}, built={self.built})"
+
 
 @register_keras_serializable(package="squark")
 class DefaultBitwidthMapper(BitwidthMapperBase):
