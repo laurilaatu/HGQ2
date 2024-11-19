@@ -4,7 +4,7 @@ from collections.abc import Callable, Iterable, Sequence
 from functools import wraps
 from typing import Any, overload
 
-import keras
+import numpy as np
 from keras import ops
 from keras.api.initializers import Constant, Initializer
 from keras.api.layers import Concatenate, Layer
@@ -12,7 +12,7 @@ from keras.api.saving import deserialize_keras_object, register_keras_serializab
 from keras.src import backend
 
 from ...config.layer import global_config
-from ...quantizer import Quantizer, QuantizerConfig, numbers
+from ...quantizer import Quantizer, QuantizerConfig
 
 
 def get_method_source(cls, method_name):
@@ -112,7 +112,7 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
     def __init__(
             self,
             enable_ebops: bool | None = None,
-            beta0: numbers | None | Initializer = None,
+            beta0: int | float | np.number | None | Initializer = None,
             enable_oq: bool | None = None,
             enable_iq: bool | None = None,
             oq_conf: QuantizerConfig | None = None,

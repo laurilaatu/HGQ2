@@ -72,6 +72,10 @@ class Quantizer(Layer):
     def bits(self):
         return self.quantizer.bits
 
+    @property
+    def q_type(self):
+        return self.config.q_type
+
     def __repr__(self):
         return f"{self.__class__.__name__}(q_type={self.config.q_type}, name={self.name}, built={self.built})"
 

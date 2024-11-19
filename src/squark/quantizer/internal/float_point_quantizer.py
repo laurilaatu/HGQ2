@@ -5,11 +5,11 @@ from keras.api.constraints import Constraint
 from keras.api.initializers import Constant, Initializer
 from keras.api.regularizers import Regularizer
 from keras.src import backend
+from quantizers.fixed_point.fixed_point_ops import round_conv
+from quantizers.minifloat.float_point_ops import float_quantize
 
 from ...constraints import Min
 from .base import TrainableQuantizerBase, numbers
-from .fixed_point_ops import round_conv
-from .float_point_ops import float_quantize
 
 
 class FloatPointQuantizer(TrainableQuantizerBase):

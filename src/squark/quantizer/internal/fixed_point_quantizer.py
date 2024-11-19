@@ -5,10 +5,10 @@ from keras.api.initializers import Constant, Initializer
 from keras.api.regularizers import Regularizer
 from keras.src import backend
 from keras.src.backend.config import epsilon
+from quantizers.fixed_point.fixed_point_ops import get_fixed_quantizer, round_conv
 
 from ...constraints import MinMax
 from .base import TrainableQuantizerBase, numbers
-from .fixed_point_ops import get_fixed_quantizer, round_conv
 
 
 def minimal_i_given_xb(x, b, symmetric=False):
