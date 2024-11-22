@@ -64,6 +64,7 @@ class QLayerMeta(ABCMeta):
 
         # ====================================================================
         # ============ Compute ebops if _compute_ebops presents ==============
+        # =============== Apply output quantizer if possible =================
         # ====================================================================
 
         original_call: Callable = cls.call
@@ -88,7 +89,8 @@ class QLayerMeta(ABCMeta):
 
             @wraps(original_call)
             def call(self, *args, **kwargs):
-                if kwargs.get('training', None) and self.enable_ebops:
+                training = kwargs.get('training', None)
+                if training and self.enable_ebops:
                     if isinstance(args[0], (tuple, list)):
                         tensors = args[0]
                     else:
@@ -97,7 +99,12 @@ class QLayerMeta(ABCMeta):
                     ebops = self._compute_ebops(*shapes)
                     self._ebops.assign(ops.cast(ebops, self._ebops.dtype))
                     self.add_loss(ebops * self.beta)
-                return original_call(self, *args, **kwargs)
+                r = original_call(self, *args, **kwargs)
+                if not self.enable_oq or self.__output_quantizer_handled__:
+                    return r
+                assert not isinstance(r, (tuple, list)), f'Layer {self.name}({type(self)}) returns multiple outputs, which must be handled in subclasses.'
+                return self.oq(r, training=training)
+
             call.__signature__ = new_signature  # type: ignore
 
             cls.call = call
@@ -108,6 +115,7 @@ class QLayerMeta(ABCMeta):
 class QLayerBase(Layer, metaclass=QLayerMeta):
     save_own_variables = Layer.save_own_variables
     load_own_variables = Layer.load_own_variables
+    __output_quantizer_handled__ = False
 
     def __init__(
             self,

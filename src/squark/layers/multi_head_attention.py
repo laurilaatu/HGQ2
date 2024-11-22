@@ -19,6 +19,8 @@ def _get_output_shape(output_rank, known_last_dims, input_shape):
 
 
 class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
+    __output_quantizer_handled__ = True
+
     def __init__(
         self,
         num_heads,
@@ -352,3 +354,35 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         ))
 
         return round(ops.convert_to_numpy(ebops))  # type: ignore
+
+    def call(
+        self,
+        query,
+        value,
+        key=None,
+        query_mask=None,
+        value_mask=None,
+        key_mask=None,
+        attention_mask=None,
+        return_attention_scores=False,
+        training=None,
+        use_causal_mask=False,
+    ):
+        ret = super().call(
+            query,
+            value,
+            key=key,
+            query_mask=query_mask,
+            value_mask=value_mask,
+            key_mask=key_mask,
+            attention_mask=attention_mask,
+            return_attention_scores=return_attention_scores,
+            training=training,
+            use_causal_mask=use_causal_mask,
+        )
+        if not self.enable_oq:
+            return ret
+
+        if return_attention_scores:
+            return self.oq(ret[0], training=training), ret[1]
+        return self.oq(ret, training=training)
