@@ -25,3 +25,4 @@ class PBar(Callback):
     def on_train_end(self, logs=None):
         if self.pbar is not None:
             self.pbar.close()
+            self.pbar = None
