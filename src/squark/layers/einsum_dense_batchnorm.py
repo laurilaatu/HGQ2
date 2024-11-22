@@ -188,8 +188,7 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
         if self.enable_iq:
             inputs = self.iq(inputs, training=training)
 
-        qkernel = self.kq(self.kernel, training=training)
-        x = ops.einsum(self.equation, inputs, qkernel)
+        x = ops.einsum(self.equation, inputs, self.kernel)
         if training and self.trainable:
             mean, var = ops.moments(
                 x, self._reduction_axes, keepdims=False, synchronized=self.synchronized
