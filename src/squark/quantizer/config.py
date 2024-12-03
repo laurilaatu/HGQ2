@@ -69,7 +69,7 @@ kbi_weight_default = KBIConfig(
     b0=4,
     i0=2,
     round_mode='RND',
-    overflow_mode='WRAP',
+    overflow_mode='SAT_SYM',
     bc=MinMax(0, 12),
     ic=None,
     br=MonoL1(1e-6),
@@ -82,12 +82,12 @@ kbi_weight_default = KBIConfig(
 )
 
 
-kbi_input_default = KBIConfig(
+kbi_datalane_default = KBIConfig(
     k0=True,
     b0=4,
     i0=2,
     round_mode='RND',
-    overflow_mode='SAT_SYM',
+    overflow_mode='WRAP',
     bc=MinMax(0, 12),
     ic=None,
     br=MonoL1(1e-6),
@@ -117,12 +117,12 @@ kif_weight_default = KIFConfig(
 )
 
 
-kif_input_default = KIFConfig(
+kif_datalane_default = KIFConfig(
     k0=True,
     i0=4,
     f0=2,
     round_mode='RND',
-    overflow_mode='SAT_SYM',
+    overflow_mode='WRAP',
     ic=MinMax(-12, 12),
     ir=MonoL1(1e-6),
     fc=MinMax(-12, 12),
@@ -151,7 +151,7 @@ float_weight_default = FloatConfig(
 )
 
 
-float_input_default = FloatConfig(
+float_datalane_default = FloatConfig(
     m0=2,
     e0=4,
     e00=0,
@@ -171,17 +171,17 @@ default_configs: dict[tuple[str, str], KIFConfig | KBIConfig | FloatConfig] = {
     ('kbi', 'weight'): kbi_weight_default,
     ('kbi', 'bias'): kbi_weight_default.copy(),
     ('kbi', 'table'): kbi_weight_default.copy(),
-    ('kbi', 'datalane'): kbi_input_default,
+    ('kbi', 'datalane'): kbi_datalane_default,
 
     ('kif', 'weight'): kif_weight_default,
     ('kif', 'bias'): kif_weight_default.copy(),
     ('kif', 'table'): kif_weight_default.copy(),
-    ('kif', 'datalane'): kif_input_default,
+    ('kif', 'datalane'): kif_datalane_default,
 
     ('float', 'weight'): float_weight_default,
     ('float', 'bias'): float_weight_default.copy(),
     ('float', 'table'): float_weight_default.copy(),
-    ('float', 'datalane'): float_input_default,
+    ('float', 'datalane'): float_datalane_default,
 }
 
 all_quantizer_keys = {k for v in default_configs.values() for k in v.keys()} | {'q_type', 'place', 'scaler', 'qnoise_factor'}
