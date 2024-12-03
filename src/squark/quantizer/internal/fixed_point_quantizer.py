@@ -64,7 +64,7 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
 
     @property
     def i_decay_speed(self):
-        return self._i_decay_speed
+        return ops.cast(self._i_decay_speed, self._i_decay_speed.dtype)
 
     @property
     def kif(self):
@@ -127,9 +127,9 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
                 _new_i = self._i.constraint(_new_i)
             current_i = ops.cast(self._i, ops.dtype(self._i))
             if training:
-                new_i = ops.stop_gradient(ops.maximum((current_i - self.i_decay_speed), _new_i))
+                new_i = ops.stop_gradient(ops.maximum((current_i - self.i_decay_speed), _new_i))  # type: ignore
             else:
-                new_i = ops.where(self.i_decay_speed > 0, current_i, ops.maximum(current_i, _new_i))
+                new_i = ops.where(self.i_decay_speed > 0, current_i, ops.maximum(current_i, _new_i))  # type: ignore
             self._i.assign(new_i)
 
         k, i, f = self.kif
