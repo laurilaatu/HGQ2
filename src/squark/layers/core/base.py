@@ -261,41 +261,32 @@ class QLayerBaseSingleInput(QLayerBase):
         return config
 
 
-class _InvocableTuple:
+class MultipleQuantizers(Layer):
     # Not subclassing tuple for stupid tensorflow tracing issue
-    def __init__(self, iterable=()):
-        self.data = tuple(iterable)
+    def __init__(self, configs: Sequence[QuantizerConfig], **kwargs):
+        super().__init__(**kwargs)
+        self.quantizers = tuple(Quantizer(config) for config in configs)
 
-    def __call__(self, x, **kwargs):
-        assert len(self) == len(x), f"number of elements in InvocableList must match number of inputs, got {len(self)} != {len(x)}"
+    def call(self, x, **kwargs):
+        assert len(self) == len(x), f"{self.name} ({self.__class__.__name__}) expects {len(self)} inputs, got {len(x)}."
         return tuple(f(x_, **kwargs) for f, x_ in zip(self, x))
 
+    def build(self, shapes: Sequence[Sequence[int | None]]):  # type: ignore
+        for q, shape in zip(self.quantizers, shapes):
+            q.build(shape)
+        self.built = True
+
     def __bool__(self):
-        return all(bool(f) for f in self)
+        return len(self.quantizers) > 0
 
     def __len__(self):
-        return len(self.data)
+        return len(self.quantizers)
 
     def __getitem__(self, item):
-        return self.data[item]
+        return self.quantizers[item]
 
     def __iter__(self):
-        return iter(self.data)
-
-# class _InvocableTuple(tuple):
-#     def __getattribute__(self, name: str):
-#         if name.startswith('__'):
-#             return super().__getattribute__(name)
-#         if all(hasattr(f, name) for f in self):
-#             return _InvocableTuple(getattr(f, name) for f in self)
-#         return super().__getattribute__(name)
-
-#     def __call__(self, x, **kwargs):
-#         assert len(self) == len(x), f"number of elements in InvocableList must match number of inputs, got {len(self)} != {len(x)}"
-#         return tuple(f(x_, **kwargs) for f, x_ in zip(self, x))
-
-#     def __bool__(self):
-#         return all(bool(f) for f in self)
+        return iter(self.quantizers)
 
 
 class QLayerBaseMultiInputs(QLayerBase):
@@ -331,12 +322,8 @@ class QLayerBaseMultiInputs(QLayerBase):
             self._iq_confs = [self.iq_confs] * n_input
         assert len(self.iq_confs) == n_input, f"number of iq_confs must match number of inputs, got {len(self._iq_confs)} != {n_input}"
 
-        _iqs = []
-        for i, iq_conf in enumerate(self.iq_confs):
-            iq = Quantizer(iq_conf, name=f"{self.name}_iq_{i}")
-            iq.build(input_shape[i])
-            _iqs.append(iq)
-        self._iq = _InvocableTuple(_iqs)
+        self._iq = MultipleQuantizers(self._iq_confs)  # type: ignore
+        self._iq.build(input_shape)
 
     def get_config(self):
         config = super().get_config()
