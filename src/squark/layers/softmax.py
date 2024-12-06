@@ -26,6 +26,7 @@ class QSoftmax(QLayerBaseSingleInput):
         super().__init__(iq_conf=iq_conf, **kwargs)  # type: ignore
         self.stable = stable
         self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
+        assert not allow_heterogeneous_table, "Heterogeneous shall never be used, unless you know what you are doing."
         self._allow_heterogeneous_table = allow_heterogeneous_table
 
         self.input_scaler = input_scaler
@@ -40,7 +41,7 @@ class QSoftmax(QLayerBaseSingleInput):
             _inv,
             inv_iq_conf,
             inv_oq_conf,
-            enable_iq=self.enable_iq,
+            enable_iq=True,
             enable_oq=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
             name=f"{self.name}_inv_table",
@@ -51,7 +52,7 @@ class QSoftmax(QLayerBaseSingleInput):
             _exp,
             exp_iq_conf,
             exp_oq_conf,
-            enable_iq=True,
+            enable_iq=self.stable,
             enable_oq=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
             name=f"{self.name}_exp_table",
@@ -108,7 +109,7 @@ class QSoftmax(QLayerBaseSingleInput):
             "axis": self.axis,
             "stable": self.stable,
             "exp_oq_conf": self.exp_table.oq.config,
-            "exp_iq_conf": self.exp_table.iq.config if self.enable_iq else None,
+            "exp_iq_conf": self.exp_table.iq.config if self.stable else None,
             "inv_oq_conf": self.inv_table.oq.config,
             "inv_iq_conf": self.inv_table.iq.config,
             "allow_heterogeneous_table": self._allow_heterogeneous_table,
