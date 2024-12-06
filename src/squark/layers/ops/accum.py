@@ -55,4 +55,4 @@ class QMeanPow2(QSum):
     def build(self, input_shape):
         super().build(input_shape)
         scale = 1.0 / prod([input_shape[i] for i in self.axis])
-        self._scale = float(2.**log2(scale))
+        self._scale = round(2.**log2(scale))

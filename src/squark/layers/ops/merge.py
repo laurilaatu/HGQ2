@@ -72,33 +72,3 @@ class QMaximum(QMerge, Maximum):
 class QMinimum(QMerge, Minimum):
     def _compute_ebops(self, shapes):
         return 1. * _ebops_from_sum_bits_excl_max(self, shapes)
-
-
-class QMatmul(QMerge):
-    def build(self, input_shape):
-        assert len(input_shape) == 2, "QMatmul requires exactly 2 inputs."
-        super().build(input_shape)
-
-    def _merge_function(self, inputs):
-        inp1, inp2 = inputs
-        return ops.matmul(inp1, inp2)
-
-    def _compute_ebops(self, shapes):
-        bits0, bits1 = (iq.bits_(shape) for iq, shape in zip(self.iq, shapes))
-        ebops = ops.sum(ops.matmul(bits0, bits1))
-        return ebops
-
-
-class QEinsum(QMerge):
-    def __init__(self, equation, **kwargs):
-        super().__init__(**kwargs)
-        self.equation = equation
-        self._ebops_equation = equation.split('->', 1)[0] + '->'
-
-    def _merge_function(self, inputs):
-        return ops.einsum(self.equation, *inputs)
-
-    def _compute_ebops(self, shapes):
-        bitss = [iq.bits_(shape) for iq, shape in zip(self.iq, shapes)]
-        ebops = ops.einsum(self._ebops_equation, *bitss)
-        return ebops

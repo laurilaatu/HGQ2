@@ -1,5 +1,6 @@
 from .accum import QMeanPow2, QSum
-from .merge import QAdd, QAveragePow2, QDot, QEinsum, QMatmul, QMaximum, QMinimum, QMultiply, QSubtract
+from .einsum import QEinsum, QMatmul
+from .merge import QAdd, QAveragePow2, QDot, QMaximum, QMinimum, QMultiply, QSubtract
 
 __all__ = [
     "QMeanPow2",
