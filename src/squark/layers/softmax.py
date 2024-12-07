@@ -83,7 +83,9 @@ class QSoftmax(QLayerBaseSingleInput):
     def call(self, inputs, training=None, mask=None):  # type: ignore
         if self.enable_iq:
             inputs = self.iq(inputs, training=training)
-        inputs = ops.max(inputs, axis=self.axis, keepdims=True) - inputs
+
+        if self.stable:
+            inputs = ops.max(inputs, axis=self.axis, keepdims=True) - inputs
 
         exp_inp = self.exp_table(inputs, training=training)
 
