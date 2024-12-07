@@ -33,7 +33,7 @@ class BitwidthMapperBase:
     def bw_to_x(self, bw, x_shape):
         raise NotImplementedError
 
-    def x_to_bw(self, x):
+    def x_to_bw_absmax(self, x):
         raise NotImplementedError
 
     def inference_weight_shape(self, input_shape) -> tuple[int, ...]:
@@ -165,8 +165,11 @@ class DefaultBitwidthMapper(BitwidthMapperBase):
     def bw_to_x(self, bw, x_shape):
         return ops.broadcast_to(bw, x_shape)
 
-    def x_to_bw(self, x):
+    def x_to_bw_absmax(self, x):
         return ops.max(ops.abs(x), axis=self.homogeneous_axis, keepdims=True)
+
+    def x_to_bw_sign(self, x):
+        return ops.any(x < 0, axis=self.homogeneous_axis, keepdims=True)
 
     def get_config(self):
         return dict(

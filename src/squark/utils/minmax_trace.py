@@ -13,6 +13,7 @@ def set_trace_mode(layer: keras.Model, trace: bool):
             layer._i_decay_speed.assign(i_decay_speed)
             if trace:
                 layer._i.assign(keras.ops.full_like(layer._i, -1e9))
+                layer._k.assign(keras.ops.zeros_like(layer._k))
     for sublayer in layer._layers:
         sublayer: keras.layers.Layer
         set_trace_mode(sublayer, trace)

@@ -105,6 +105,9 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
     def epsilon(self):
         return 2.**-self.f
 
+    def get_any_k(self, inputs):
+        return self.bw_mapper.x_to_bw_sign(inputs)
+
     def __repr__(self) -> str:
         if not self.built:
             return f"{self.__class__.__name__}({self.round_mode}, {self.overflow_mode}, name={self.name}, built=False)"
@@ -130,6 +133,10 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
                 new_i = ops.stop_gradient(ops.maximum((current_i - self.i_decay_speed), _new_i))  # type: ignore
             else:
                 new_i = ops.where(self.i_decay_speed > 0, current_i, ops.maximum(current_i, _new_i))  # type: ignore
+                _new_k = self.get_any_k(inputs)
+                cur_k = ops.cast(self._k, 'int8')
+                new_k = ops.where(self.i_decay_speed < 0, _new_k, cur_k)  # type: ignore
+                self._k.assign(new_k)
             self._i.assign(new_i)
 
         k, i, f = self.kif
@@ -253,7 +260,7 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
         return k, i, b - i  # type: ignore
 
     def get_minimal_i(self, inputs):
-        xr = self.bw_mapper.x_to_bw(inputs)
+        xr = self.bw_mapper.x_to_bw_absmax(inputs)
         return minimal_i_given_xb(xr, self.b, self.symmetric)
 
     def validate_config(self):
@@ -375,7 +382,7 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
         return self.k, self.i, self.f
 
     def get_minimal_i(self, inputs):
-        xr = self.bw_mapper.x_to_bw(inputs)
+        xr = self.bw_mapper.x_to_bw_absmax(inputs)
         return minimal_i_given_xf(xr, self.f, self.symmetric)
 
     def validate_config(self):
