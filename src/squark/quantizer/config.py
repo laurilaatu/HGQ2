@@ -167,6 +167,17 @@ float_datalane_default = FloatConfig(
     trainable=True,
 )
 
+kbi_table_default = kbi_weight_default.copy()
+kif_table_default = kif_weight_default.copy()
+float_table_default = float_weight_default.copy()
+
+kbi_table_default['homogeneous_axis'] = None
+kbi_table_default['heterogeneous_axis'] = ()
+kif_table_default['homogeneous_axis'] = None
+kif_table_default['heterogeneous_axis'] = ()
+float_table_default['homogeneous_axis'] = None
+float_table_default['heterogeneous_axis'] = ()
+
 default_configs: dict[tuple[str, str], KIFConfig | KBIConfig | FloatConfig] = {
     ('kbi', 'weight'): kbi_weight_default,
     ('kbi', 'bias'): kbi_weight_default.copy(),
