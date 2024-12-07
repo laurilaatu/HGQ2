@@ -13,7 +13,7 @@ class QSoftmax(QLayerBaseSingleInput):
         self,
         axis: int | Sequence[int] = -1,
         iq_conf: None | QuantizerConfig = None,
-        stable=False,
+        stable=True,
         exp_iq_conf: None | QuantizerConfig = None,
         exp_oq_conf: None | QuantizerConfig = None,
         inv_iq_conf: None | QuantizerConfig = None,
@@ -35,7 +35,18 @@ class QSoftmax(QLayerBaseSingleInput):
             return 1.0 / (x + backend.epsilon())
 
         def _exp(x):
-            return ops.exp(x * self.input_scaler)
+            if self.stable:
+                return ops.exp(-x * self.input_scaler)
+            else:
+                return ops.exp(x * self.input_scaler)
+
+        inv_iq_conf = inv_iq_conf or QuantizerConfig('default', 'datalane')
+        exp_iq_conf = exp_iq_conf or QuantizerConfig('default', 'datalane')
+        if not self._allow_heterogeneous_table:
+            inv_iq_conf.config['heterogeneous_axis'] = ()
+            inv_iq_conf.config['homogeneous_axis'] = None
+            exp_iq_conf.config['heterogeneous_axis'] = ()
+            exp_iq_conf.config['homogeneous_axis'] = None
 
         self.inv_table = QUnaryFunctionLUT(
             _inv,
@@ -70,10 +81,9 @@ class QSoftmax(QLayerBaseSingleInput):
         super().build(input_shape)
 
     def call(self, inputs, training=None, mask=None):  # type: ignore
-        if self.stable:
-            if self.enable_iq:
-                inputs = self.iq(inputs, training=training)
-            inputs = inputs - ops.max(inputs, axis=self.axis, keepdims=True)
+        if self.enable_iq:
+            inputs = self.iq(inputs, training=training)
+        inputs = ops.max(inputs, axis=self.axis, keepdims=True) - inputs
 
         exp_inp = self.exp_table(inputs, training=training)
 
