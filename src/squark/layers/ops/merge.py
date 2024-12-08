@@ -36,7 +36,10 @@ class QAveragePow2(QAdd, Average):
         self._scale = float(2. ** log2(1.0 / len(input_shape)))
 
     def _merge_function(self, inputs):
-        r = super()._merge_function(inputs)
+        output = inputs[0]
+        for i in range(1, len(inputs)):
+            output = ops.add(output, inputs[i])
+        return output * self._scale  # type: ignore
 
 
 class QSubtract(QMerge, Subtract):
