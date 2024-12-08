@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from math import prod
 
 from keras import ops
 from keras.src import backend
@@ -20,6 +21,7 @@ class QSoftmax(QLayerBaseSingleInput):
         inv_oq_conf: None | QuantizerConfig = None,
         allow_heterogeneous_table: bool = False,
         input_scaler: float = 1.0,
+        parallelization_factor: int = -1,
         **kwargs
     ):
         self.supports_masking = True
@@ -28,6 +30,7 @@ class QSoftmax(QLayerBaseSingleInput):
         self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
         assert not allow_heterogeneous_table, "Heterogeneous shall never be used, unless you know what you are doing."
         self._allow_heterogeneous_table = allow_heterogeneous_table
+        self.parallelization_factor = parallelization_factor
 
         self.input_scaler = input_scaler
 
@@ -78,6 +81,7 @@ class QSoftmax(QLayerBaseSingleInput):
         for i in self.axis:
             inv_shape[i] = 1
         self.inv_table.build(tuple(inv_shape))
+
         super().build(input_shape)
 
     def call(self, inputs, training=None, mask=None):  # type: ignore
@@ -98,7 +102,10 @@ class QSoftmax(QLayerBaseSingleInput):
         return exp_inp * divisor
 
     def _compute_ebops(self, shape):
-        shape2 = tuple(1 if i in self.axis else s for i, s in enumerate(shape))
+        accum_shape = tuple(1 if i in self.axis else s for i, s in enumerate(shape))
+        max_instance = prod(accum_shape)
+        n_instance = self.parallelization_factor if self.parallelization_factor > 0 else max_instance
+        factor = n_instance / max_instance
 
         if self.stable:
             inp_bits = self.iq.bits_(shape)
@@ -107,13 +114,13 @@ class QSoftmax(QLayerBaseSingleInput):
             substract_ebops = 0
 
         exp_bits = self.exp_table.oq.bits_(shape)
-        inv_bits = self.inv_table.oq.bits_(shape2)
+        inv_bits = self.inv_table.oq.bits_(accum_shape)
 
         accum_ebops = ops.sum(exp_bits) - ops.sum(ops.min(exp_bits, axis=self.axis))  # type: ignore
         mult_ebops = ops.sum(exp_bits * inv_bits)  # type: ignore
 
         ebops = substract_ebops + accum_ebops + mult_ebops
-        return ebops
+        return ebops * factor
 
     def get_config(self):
         config = super().get_config()
@@ -126,6 +133,7 @@ class QSoftmax(QLayerBaseSingleInput):
             "inv_iq_conf": self.inv_table.iq.config,
             "allow_heterogeneous_table": self._allow_heterogeneous_table,
             "input_scaler": self.input_scaler,
+            "parallelization_factor": self.parallelization_factor,
         })
         return config
 
