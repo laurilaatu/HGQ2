@@ -3,15 +3,15 @@ from .einsum import QEinsum, QMatmul
 from .merge import QAdd, QAveragePow2, QDot, QMaximum, QMinimum, QMultiply, QSubtract
 
 __all__ = [
-    "QMeanPow2",
-    "QSum",
-    "QAdd",
-    "QAveragePow2",
-    "QDot",
-    "QEinsum",
-    "QMatmul",
-    "QMaximum",
-    "QMinimum",
-    "QMultiply",
-    "QSubtract",
+    'QMeanPow2',
+    'QSum',
+    'QAdd',
+    'QAveragePow2',
+    'QDot',
+    'QEinsum',
+    'QMatmul',
+    'QMaximum',
+    'QMinimum',
+    'QMultiply',
+    'QSubtract',
 ]

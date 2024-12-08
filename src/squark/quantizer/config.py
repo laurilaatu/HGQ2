@@ -9,7 +9,14 @@ from keras.api.saving import deserialize_keras_object, register_keras_serializab
 from ..constraints import Min, MinMax
 from ..regularizers import MonoL1
 from ..utils.misc import numbers
-from .internal import BitwidthMapperBase, DummyQuantizer, FixedPointQuantizerKBI, FixedPointQuantizerKIF, FloatPointQuantizer, TrainableQuantizerBase
+from .internal import (
+    BitwidthMapperBase,
+    DummyQuantizer,
+    FixedPointQuantizerKBI,
+    FixedPointQuantizerKIF,
+    FloatPointQuantizer,
+    TrainableQuantizerBase,
+)
 
 default_q_type = {
     'weight': 'kbi',
@@ -183,12 +190,10 @@ default_configs: dict[tuple[str, str], KIFConfig | KBIConfig | FloatConfig] = {
     ('kbi', 'bias'): kbi_weight_default.copy(),
     ('kbi', 'table'): kbi_weight_default.copy(),
     ('kbi', 'datalane'): kbi_datalane_default,
-
     ('kif', 'weight'): kif_weight_default,
     ('kif', 'bias'): kif_weight_default.copy(),
     ('kif', 'table'): kif_weight_default.copy(),
     ('kif', 'datalane'): kif_datalane_default,
-
     ('float', 'weight'): float_weight_default,
     ('float', 'bias'): float_weight_default.copy(),
     ('float', 'table'): float_weight_default.copy(),
@@ -208,7 +213,6 @@ def all_places():
 
 @register_keras_serializable(package='squark')
 class QuantizerConfig(Mapping):
-
     @overload
     def __init__(
         self,
@@ -232,7 +236,7 @@ class QuantizerConfig(Mapping):
         qnoise_factor: float | None = None,
         **kwargs,
     ) -> None:
-        f"""Fixed point quantizer config with KBI parametrization.
+        """Fixed point quantizer config with KBI parametrization.
 
         Parameters
         ----------
@@ -399,12 +403,12 @@ class QuantizerConfig(Mapping):
         ...
 
     def __init__(
-            self,
-            q_type: str = 'default',
-            place: str = 'datalane',
-            scaler: numbers | None = None,
-            qnoise_factor: float | None = None,
-            **kwargs
+        self,
+        q_type: str = 'default',
+        place: str = 'datalane',
+        scaler: numbers | None = None,
+        qnoise_factor: float | None = None,
+        **kwargs,
     ) -> None:
         """Universal quantizer config. The type of the quantizer is specified by the `type` argument.
 
@@ -427,25 +431,26 @@ class QuantizerConfig(Mapping):
         if q_type == 'default':
             q_type = default_q_type[place]
         if q_type != 'dummy':
-            assert (q_type, place) in default_configs, f"Default config for ({q_type}, {place}) not found."
+            assert (q_type, place) in default_configs, f'Default config for ({q_type}, {place}) not found.'
         self.place = place
         self.q_type = q_type
 
         self.scaler = None
         self.qnoise_factor = None
         if scaler is not None:
-            assert scaler != 0, "scaler must not be 0."
+            assert scaler != 0, 'scaler must not be 0.'
             self.scaler = float(scaler)
         if qnoise_factor is not None:
-            assert 0 <= qnoise_factor <= 1, "qnoise_factor must be between 0 and 1."
+            assert 0 <= qnoise_factor <= 1, 'qnoise_factor must be between 0 and 1.'
             self.qnoise_factor = float(qnoise_factor) if qnoise_factor is not None else None
 
         if q_type == 'dummy':  # Special case for dummy quantizer
             self.config = {}
             return
 
-        assert kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None, \
-            "homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them."
+        assert (
+            kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None
+        ), 'homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them.'
 
         if kwargs.get('homogeneous_axis') is not None:
             kwargs['heterogeneous_axis'] = None
@@ -453,13 +458,13 @@ class QuantizerConfig(Mapping):
             kwargs['homogeneous_axis'] = None
 
         config = default_configs.get((q_type, place))
-        assert config is not None, f"Default config for ({q_type}, {place}) not found."
+        assert config is not None, f'Default config for ({q_type}, {place}) not found.'
         self.config = config.copy()
 
         if self.config is not None:
             for k, v in kwargs.items():
                 if k not in self.config:
-                    raise ValueError(f"{k} is not a valid parameter for {q_type} quantizer config.")
+                    raise ValueError(f'{k} is not a valid parameter for {q_type} quantizer config.')
                 self.config[k] = v
 
     def __getitem__(self, key):
@@ -480,7 +485,7 @@ class QuantizerConfig(Mapping):
             'place': self.place,
             'scaler': self.scaler,
             'qnoise_factor': self.qnoise_factor,
-            **self.config
+            **self.config,
         }
 
     @classmethod
@@ -498,11 +503,17 @@ class QuantizerConfig(Mapping):
             case 'dummy':
                 return DummyQuantizer()
             case _:
-                raise ValueError(f"Unknown quantizer type: {self.q_type}")
+                raise ValueError(f'Unknown quantizer type: {self.q_type}')
 
 
 class QuantizerConfigScope:
-    def __init__(self, q_type: str | Sequence[str] | set[str] = 'all', place: str | Sequence[str] | set[str] = 'all', default_q_type=None, **kwargs):
+    def __init__(
+        self,
+        q_type: str | Sequence[str] | set[str] = 'all',
+        place: str | Sequence[str] | set[str] = 'all',
+        default_q_type=None,
+        **kwargs,
+    ):
         """Override default quantizer config within a context.
 
         Parameters
@@ -527,10 +538,11 @@ class QuantizerConfigScope:
 
         for _q_type in q_type:
             for _place in place:
-                assert (_q_type, _place) in default_configs, f"Default config for ({_q_type}, {_place}) not found."
+                assert (_q_type, _place) in default_configs, f'Default config for ({_q_type}, {_place}) not found.'
 
-        assert kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None, \
-            "homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them."
+        assert (
+            kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None
+        ), 'homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them.'
 
         if kwargs.get('homogeneous_axis') is not None:
             kwargs['heterogeneous_axis'] = None
@@ -548,7 +560,7 @@ class QuantizerConfigScope:
 
         for k in kwargs:
             if k not in all_quantizer_keys:
-                raise ValueError(f"{k} is not a valid parameter for any known quantizer configs.")
+                raise ValueError(f'{k} is not a valid parameter for any known quantizer configs.')
 
         self.q_types = q_type
         self.places = place
@@ -575,7 +587,7 @@ class QuantizerConfigScope:
             default_q_type.update(self.original_default_q_type)
             self.original_default_q_type = None
 
-        for (q_type, place) in self._tmp_storage:
+        for q_type, place in self._tmp_storage:
             default_configs[(q_type, place)].update(self._tmp_storage[(q_type, place)])
         self._tmp_storage.clear()
 

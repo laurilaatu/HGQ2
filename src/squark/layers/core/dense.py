@@ -13,8 +13,8 @@ class QDense(QLayerBaseSingleInput, Dense):
         units,
         activation=None,
         use_bias=True,
-        kernel_initializer="glorot_uniform",
-        bias_initializer="zeros",
+        kernel_initializer='glorot_uniform',
+        bias_initializer='zeros',
         kernel_regularizer=None,
         bias_regularizer=None,
         activity_regularizer=None,
@@ -29,9 +29,9 @@ class QDense(QLayerBaseSingleInput, Dense):
         super().__init__(lora_rank=None, **kwargs)
 
         kq_conf = kq_conf or QuantizerConfig('default', 'weight')
-        self._kq = Quantizer(kq_conf, name=f"{self.name}_kq")
+        self._kq = Quantizer(kq_conf, name=f'{self.name}_kq')
         bq_conf = bq_conf or QuantizerConfig('default', 'bias')
-        self._bq = Quantizer(bq_conf, name=f"{self.name}_bq") if use_bias else None
+        self._bq = Quantizer(bq_conf, name=f'{self.name}_bq') if use_bias else None
 
     @property
     def kq(self):
@@ -74,10 +74,12 @@ class QDense(QLayerBaseSingleInput, Dense):
 
     def get_config(self):
         config = super().get_config()
-        config.update({
-            'kq_conf': self.kq.config,
-            'bq_conf': self.bq.config if self.bq is not None else None,
-        })
+        config.update(
+            {
+                'kq_conf': self.kq.config,
+                'bq_conf': self.bq.config if self.bq is not None else None,
+            }
+        )
         return config
 
     @property

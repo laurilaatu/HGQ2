@@ -20,12 +20,10 @@ global_config = GlobalConfig(
 
 class LayerConfigScope:
     @overload
-    def __init__(self, *, beta0: float | None | Initializer = None, enable_ebops: bool | None = None):
-        ...
+    def __init__(self, *, beta0: float | None | Initializer = None, enable_ebops: bool | None = None): ...
 
     @overload
-    def __init__(self, **kwargs):
-        ...
+    def __init__(self, **kwargs): ...
 
     def __init__(self, **kwargs):
         self._override = kwargs

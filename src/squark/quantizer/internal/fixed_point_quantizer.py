@@ -55,7 +55,7 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
         self.stateless_quantizer = get_fixed_quantizer(self.round_mode, self.overflow_mode)
         if self.overflow_mode == 'WRAP':
             init = Constant(self._i_decay_speed0) if not isinstance(self._i_decay_speed0, Initializer) else self._i_decay_speed0
-            self._i_decay_speed = self.add_weight(name="i_decay_speed", shape=(), initializer=init, trainable=False)
+            self._i_decay_speed = self.add_weight(name='i_decay_speed', shape=(), initializer=init, trainable=False)
         self._symmetric = self.overflow_mode.endswith('SYM')
 
     @property
@@ -93,31 +93,33 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
     @property
     def min(self):
         if self.symmetric:
-            return -self.k * (2.**self.i - 2.**-self.f)
+            return -self.k * (2.0**self.i - 2.0**-self.f)
         else:
-            return -self.k * (2.**self.i)
+            return -self.k * (2.0**self.i)
 
     @property
     def max(self):
-        return 2.**self.i - 2.**-self.f
+        return 2.0**self.i - 2.0**-self.f
 
     @property
     def epsilon(self):
-        return 2.**-self.f
+        return 2.0**-self.f
 
     def get_any_k(self, inputs):
         return self.bw_mapper.x_to_bw_sign(inputs)
 
     def __repr__(self) -> str:
         if not self.built:
-            return f"{self.__class__.__name__}({self.round_mode}, {self.overflow_mode}, name={self.name}, built=False)"
+            return f'{self.__class__.__name__}({self.round_mode}, {self.overflow_mode}, name={self.name}, built=False)'
         k, i, f = self.k, self.i, self.f
         kstd, istd, fstd = float(ops.std(k)), float(ops.std(i)), float(ops.std(f))  # type: ignore
         kmean, imean, fmean = float(ops.mean(k)), float(ops.mean(i)), float(ops.mean(f))  # type: ignore
-        kstr = f"{kmean:.2f}±{kstd:.2f}"
-        istr = f"{imean:.2f}±{istd:.2f}"
-        fstr = f"{fmean:.2f}±{fstd:.2f}"
-        return f"{self.__class__.__name__}(k={kstr}, i={istr}, f={fstr}, {self.round_mode}, {self.overflow_mode}, name={self.name})"
+        kstr = f'{kmean:.2f}±{kstd:.2f}'
+        istr = f'{imean:.2f}±{istd:.2f}'
+        fstr = f'{fmean:.2f}±{fstd:.2f}'
+        return (
+            f'{self.__class__.__name__}(k={kstr}, i={istr}, f={fstr}, {self.round_mode}, {self.overflow_mode}, name={self.name})'
+        )
 
     def get_minimum_i(self, inputs):
         raise NotImplementedError
@@ -187,12 +189,12 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
         br: Regularizer | None = None,
         ir: Regularizer | None = None,
         i_decay_speed: numbers = float('inf'),
-        **kwargs
+        **kwargs,
     ):
         if not isinstance(k0, Initializer) and not isinstance(b0, Initializer) and not isinstance(i0, Initializer):
             k0 = int(k0)
-            assert k0 == 0 or k0 == 1, f"Invalid k0 value {k0}: must be 0 or 1."
-            assert b0 >= 0, f"Invalid b0 value {b0}: must be non-negative."
+            assert k0 == 0 or k0 == 1, f'Invalid k0 value {k0}: must be 0 or 1.'
+            assert b0 >= 0, f'Invalid b0 value {b0}: must be non-negative.'
         self._k0 = k0 if isinstance(k0, Initializer) else Constant(float(k0))
         self._b0 = b0 if isinstance(b0, Initializer) else Constant(float(b0))
         self._i0 = i0 if isinstance(i0, Initializer) else Constant(float(i0))
@@ -211,28 +213,28 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
         bw_shape = self.bw_mapper.inference_weight_shape(input_shape)
 
         self._k = self.add_weight(
-            name="k",
+            name='k',
             shape=bw_shape,
             initializer=self._k0,
             trainable=False,
-            dtype='uint8'
+            dtype='uint8',
         )
         self._b = self.add_weight(
-            name="b",
+            name='b',
             shape=bw_shape,
             initializer=self._b0,
             trainable=True,
             constraint=self.b_constraint,
-            regularizer=self.b_regularizer
+            regularizer=self.b_regularizer,
         )
         i_trainable = self.overflow_mode != 'WRAP'
         self._i = self.add_weight(
-            name="i",
+            name='i',
             shape=bw_shape,
             initializer=self._i0,
             trainable=i_trainable,
             constraint=self.i_constraint,
-            regularizer=self.i_regularizer
+            regularizer=self.i_regularizer,
         )
         super().build(input_shape)
 
@@ -312,12 +314,12 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
         ir: Regularizer | None = None,
         fr: Regularizer | None = None,
         i_decay_speed: numbers = float('inf'),
-        **kwargs
+        **kwargs,
     ):
         if not isinstance(k0, Initializer) and not isinstance(i0, Initializer) and not isinstance(f0, Initializer):
             k0 = int(k0)
-            assert k0 == 0 or k0 == 1, f"Invalid k0 value {k0}: must be 0 or 1."
-            assert i0 + f0 >= 0, f"Invalid i0+f0 value {i0 + f0}: must be non-negative."
+            assert k0 == 0 or k0 == 1, f'Invalid k0 value {k0}: must be 0 or 1.'
+            assert i0 + f0 >= 0, f'Invalid i0+f0 value {i0 + f0}: must be non-negative.'
         self._k0 = k0 if isinstance(k0, Initializer) else Constant(float(k0))
         self._i0 = i0 if isinstance(i0, Initializer) else Constant(float(i0))
         self._f0 = f0 if isinstance(f0, Initializer) else Constant(float(f0))
@@ -335,28 +337,28 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
         bw_shape = self.bw_mapper.inference_weight_shape(input_shape)
 
         self._k = self.add_weight(
-            name="k",
+            name='k',
             shape=bw_shape,
             initializer=self._k0,
             trainable=False,
-            dtype='uint8'
+            dtype='uint8',
         )
         i_trainable = self.overflow_mode != 'WRAP'
         self._i = self.add_weight(
-            name="i",
+            name='i',
             shape=bw_shape,
             initializer=self._i0,
             trainable=i_trainable,
             constraint=self.i_constraint,
-            regularizer=self.i_regularizer
+            regularizer=self.i_regularizer,
         )
         self._f = self.add_weight(
-            name="f",
+            name='f',
             shape=bw_shape,
             initializer=self._f0,
             trainable=True,
             constraint=self.f_constraint,
-            regularizer=self.f_regularizer
+            regularizer=self.f_regularizer,
         )
 
         super().build(input_shape)

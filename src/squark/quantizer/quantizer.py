@@ -8,16 +8,13 @@ from .config import QuantizerConfig, all_quantizer_keys
 
 
 class Quantizer(Layer):
-    """The generic quantizer layer, wraps internal quantizers to provide a universal interface. Supports float, fixed-point (KBI, KIF) quantization. Can be initialized with a QuantizerConfig object or with the quantizer type and its parameters.
-    """
+    """The generic quantizer layer, wraps internal quantizers to provide a universal interface. Supports float, fixed-point (KBI, KIF) quantization. Can be initialized with a QuantizerConfig object or with the quantizer type and its parameters."""
 
     @overload
-    def __init__(self, config: QuantizerConfig, **kwargs):
-        ...
+    def __init__(self, config: QuantizerConfig, **kwargs): ...
 
     @overload
-    def __init__(self, q_type='default', place='datalane', **kwargs):
-        ...
+    def __init__(self, q_type='default', place='datalane', **kwargs): ...
 
     def __init__(self, *args, **kwargs):
         self.supports_masking = True
@@ -32,14 +29,13 @@ class Quantizer(Layer):
         super().build(input_shape)
 
     def get_quantizer_config_kwargs(self, *args, **kwargs):
-
         if len(args) == 1 and isinstance(args[0], QuantizerConfig):
             return args[0], kwargs
         config = kwargs.pop('config', None)
         if isinstance(config, QuantizerConfig):
             return config, kwargs
         else:
-            assert config is None, f"config must be a QuantizerConfig object, got {config}"
+            assert config is None, f'config must be a QuantizerConfig object, got {config}'
 
         _kwargs = {}
         for k in list(kwargs.keys()):
@@ -77,7 +73,7 @@ class Quantizer(Layer):
         return self.config.q_type
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(q_type={self.config.q_type}, name={self.name}, built={self.built})"
+        return f'{self.__class__.__name__}(q_type={self.config.q_type}, name={self.name}, built={self.built})'
 
     def bits_(self, shape):
         bits = self.bits

@@ -4,13 +4,13 @@ from keras import ops
 from keras.api.layers import Activation
 from keras.src import backend
 
-from ..quantizer import Quantizer, QuantizerConfig
+from ..quantizer import QuantizerConfig
 from .core.base import QLayerBaseSingleInput
 
 
 def _large_negative_number(dtype):
     """Return a Large negative number based on dtype."""
-    if backend.standardize_dtype(dtype) == "float16":
+    if backend.standardize_dtype(dtype) == 'float16':
         return -3e4
     return -1e9
 
@@ -24,10 +24,10 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         enable_oq=True,
         allow_heterogeneous_table: bool = False,
         override_oq_k0_to_0: bool = False,
-        **kwargs
+        **kwargs,
     ):
         act_name = activation.__name__ if isinstance(activation, Callable) else activation
-        assert act_name not in ('softmax', 'log_softmax'), f"activation {act_name} is not unary"
+        assert act_name not in ('softmax', 'log_softmax'), f'activation {act_name} is not unary'
 
         if enable_oq:
             oq_conf = oq_conf or QuantizerConfig('default', 'table')
@@ -51,7 +51,7 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         bw_inp = self.iq.bits_(shape)
         bw_out = self.oq.bits_(shape)
         # TODO: more realistic cost for lookup tables
-        return ops.sum((2.**bw_inp) * bw_out) * 0.01  # type: ignore
+        return ops.sum((2.0**bw_inp) * bw_out) * 0.01  # type: ignore
 
 
 class QPositiveUnaryFunctionLUT(QUnaryFunctionLUT):
@@ -61,9 +61,11 @@ class QPositiveUnaryFunctionLUT(QUnaryFunctionLUT):
         iq_conf: QuantizerConfig | None = None,
         oq_conf: QuantizerConfig | None = None,
         allow_heterogeneous_table: bool = False,
-        **kwargs
+        **kwargs,
     ):
-        assert kwargs.pop('enable_out_quantizer', True), "enable_out_quantizer must be True for QPositiveUnaryFunctionLUT, if set."
+        assert kwargs.pop(
+            'enable_out_quantizer', True
+        ), 'enable_out_quantizer must be True for QPositiveUnaryFunctionLUT, if set.'
         super().__init__(
             activation=activation,
             iq_conf=iq_conf,
@@ -71,7 +73,7 @@ class QPositiveUnaryFunctionLUT(QUnaryFunctionLUT):
             enable_oq=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
             override_oq_k0_to_0=True,
-            **kwargs
+            **kwargs,
         )
 
     def call(self, inputs, training=None):

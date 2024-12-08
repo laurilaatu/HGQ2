@@ -33,7 +33,7 @@ class QAdd(QMerge, Add):
 class QAveragePow2(QAdd, Average):
     def build(self, input_shape):
         super().build(input_shape)
-        self._scale = float(2. ** log2(1.0 / len(input_shape)))
+        self._scale = float(2.0 ** log2(1.0 / len(input_shape)))
 
     def _merge_function(self, inputs):
         output = inputs[0]
@@ -69,9 +69,9 @@ class QDot(QMerge, Dot):
 
 class QMaximum(QMerge, Maximum):
     def _compute_ebops(self, shapes):
-        return 1. * _ebops_from_sum_bits_excl_max(self, shapes)
+        return 1.0 * _ebops_from_sum_bits_excl_max(self, shapes)
 
 
 class QMinimum(QMerge, Minimum):
     def _compute_ebops(self, shapes):
-        return 1. * _ebops_from_sum_bits_excl_max(self, shapes)
+        return 1.0 * _ebops_from_sum_bits_excl_max(self, shapes)

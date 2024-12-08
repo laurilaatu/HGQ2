@@ -3,6 +3,7 @@ import keras
 
 def set_trace_mode(layer: keras.Model, trace: bool):
     from ..quantizer.internal import FixedPointQuantizerBase
+
     if isinstance(layer, FixedPointQuantizerBase):
         if hasattr(layer, '_i_decay_speed'):
             i_decay_speed = layer.i_decay_speed

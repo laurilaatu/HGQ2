@@ -1,12 +1,10 @@
 import numpy as np
 from keras import ops
-from keras.api.saving import register_keras_serializable
-from keras.src import backend, constraints, initializers, ops, regularizers
+from keras.src import constraints, initializers, regularizers
 from keras.src.backend.config import epsilon
 from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
 from ..quantizer.config import QuantizerConfig
-from .batch_normalization import QBatchNormalization
 from .core.einsum_dense import QEinsumDense
 
 
@@ -17,8 +15,8 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
         output_shape,
         activation=None,
         bias_axes=None,
-        kernel_initializer="glorot_uniform",
-        bias_initializer="zeros",
+        kernel_initializer='glorot_uniform',
+        bias_initializer='zeros',
         kernel_regularizer=None,
         bias_regularizer=None,
         kernel_constraint=None,
@@ -31,10 +29,10 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
         epsilon=1e-3,
         center=True,
         scale=True,
-        beta_initializer="zeros",
-        gamma_initializer="ones",
-        moving_mean_initializer="zeros",
-        moving_variance_initializer="ones",
+        beta_initializer='zeros',
+        gamma_initializer='ones',
+        moving_mean_initializer='zeros',
+        moving_variance_initializer='ones',
         beta_regularizer=None,
         gamma_regularizer=None,
         beta_constraint=None,
@@ -67,7 +65,7 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
         self.gamma_initializer = initializers.get(gamma_initializer)
         self.moving_mean_initializer = initializers.get(moving_mean_initializer)
         self.moving_variance_initializer = initializers.get(
-            moving_variance_initializer
+            moving_variance_initializer,
         )
         self.beta_regularizer = regularizers.get(beta_regularizer)
         self.gamma_regularizer = regularizers.get(gamma_regularizer)
@@ -76,16 +74,16 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
         self.supports_masking = False
 
         normalize_axes = normalize_axes or bias_axes
-        assert normalize_axes is not None, "Either normalize_axes or bias_axes must be provided."
+        assert normalize_axes is not None, 'Either normalize_axes or bias_axes must be provided.'
         self.normalize_axes = normalize_axes
 
     def _check_normalize_axes_1(self):
         kernel_axes, output_axes = self.equation.split(',')[0].split('->')[0]
         for c in self.normalize_axes:
             if c not in kernel_axes:
-                raise ValueError(f"Axis {c} not found in kernel axes {kernel_axes}")
+                raise ValueError(f'Axis {c} not found in kernel axes {kernel_axes}')
             if c not in output_axes:
-                raise ValueError(f"Axis {c} not found in output axes {output_axes}")
+                raise ValueError(f'Axis {c} not found in output axes {output_axes}')
             # if c not in self.bias_axes:
             #     raise ValueError(f"Axis {c} not found in bias axes {self.bias_axes}")
 
@@ -131,7 +129,7 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
         if self.scale:
             self.bn_gamma = self.add_weight(
                 shape=norm_shape,
-                name="gamma",
+                name='gamma',
                 initializer=self.gamma_initializer,
                 regularizer=self.gamma_regularizer,
                 constraint=self.gamma_constraint,
@@ -143,14 +141,14 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
 
         self.moving_mean = self.add_weight(
             shape=norm_shape,
-            name="moving_mean",
+            name='moving_mean',
             initializer=self.moving_mean_initializer,
             trainable=False,
             autocast=False,
         )
         self.moving_variance = self.add_weight(
             shape=norm_shape,
-            name="moving_variance",
+            name='moving_variance',
             initializer=self.moving_variance_initializer,
             trainable=False,
             autocast=False,
@@ -184,20 +182,22 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
         return self.get_fused_qkernel_and_qbias(training=False, mean=mean, var=var)[1]
 
     def call(self, inputs, training=None):  # type: ignore
-
         if self.enable_iq:
             inputs = self.iq(inputs, training=training)
 
         x = ops.einsum(self.equation, inputs, self.kernel)
         if training and self.trainable:
             mean, var = ops.moments(
-                x, self._reduction_axes, keepdims=False, synchronized=self.synchronized
+                x,
+                self._reduction_axes,
+                keepdims=False,
+                synchronized=self.synchronized,
             )  # type: ignore
             self.moving_mean.assign(
-                self.moving_mean * self.momentum + mean * (1.0 - self.momentum)
+                self.moving_mean * self.momentum + mean * (1.0 - self.momentum),
             )
             self.moving_variance.assign(
-                self.moving_variance * self.momentum + var * (1.0 - self.momentum)
+                self.moving_variance * self.momentum + var * (1.0 - self.momentum),
             )
         else:
             var, mean = self.moving_variance, self.moving_mean

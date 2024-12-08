@@ -1,5 +1,5 @@
 from keras import ops
-from keras.api.initializers import HeNormal, Initializer
+from keras.api.initializers import Initializer
 
 from squark.quantizer import Quantizer
 
@@ -20,7 +20,7 @@ class QInitializer(Initializer):
 
         # delta is the minimum resolution of the number system.
         # we want to make sure we have enough values.
-        if delta > std_x and hasattr(self.initializer, "scale"):  # type: ignore
+        if delta > std_x and hasattr(self.initializer, 'scale'):  # type: ignore
             q = self.quantizer(x)
             max_q = ops.max(ops.abs(q))
             scale = 1.0
@@ -43,4 +43,4 @@ class QInitializer(Initializer):
     def get_config(self):
         # TODO: either avoid (stateful) quantizers in the class, or make the init ephemeral. Avoid saving (stateful) quantizers.
         # Error is tentatively raised to avoid saving (stateful) quantizers.
-        raise ValueError("QInitializer is ephemeral in squark/qkeras. It should not be saved.")
+        raise ValueError('QInitializer is ephemeral in squark/qkeras. It should not be saved.')

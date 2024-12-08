@@ -3,9 +3,9 @@ from .dense import QDense
 from .einsum_dense import QEinsumDense
 
 __all__ = [
-    "QLayerBaseSingleInput",
-    "QLayerBase",
-    "QLayerBaseMultiInputs",
-    "QEinsumDense",
-    "QDense",
+    'QLayerBaseSingleInput',
+    'QLayerBase',
+    'QLayerBaseMultiInputs',
+    'QEinsumDense',
+    'QDense',
 ]

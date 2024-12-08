@@ -1,7 +1,6 @@
-from keras.api import Variable, backend, initializers, ops
+from keras.api import backend, initializers, ops
 from keras.api.constraints import Constraint
 from keras.api.regularizers import Regularizer
-from keras.api.saving import register_keras_serializable
 
 from squark.constraints import MinMax
 from squark.quantizer.internal import FixedPointQuantizerKBI, numbers
@@ -22,10 +21,10 @@ class FrozenFixedPointQuantizer(FixedPointQuantizerKBI):
         ic: Constraint | None = None,
         br: Regularizer | None = None,
         ir: Regularizer | None = None,
-        **kwargs
+        **kwargs,
     ):
-        trainable = kwargs.pop("trainable", False)
-        assert not trainable, "FrozenFixedPointQuantizer does not support trainable=True"
+        trainable = kwargs.pop('trainable', False)
+        assert not trainable, 'FrozenFixedPointQuantizer does not support trainable=True'
 
         kwargs = gather_vars_to_kwargs('self')
         super().__init__(**kwargs)
@@ -35,14 +34,25 @@ class FrozenFixedPointQuantizer(FixedPointQuantizerKBI):
         super().build(input_shape)
         del self.building
 
-    def add_weight(self, shape=None, initializer=None, dtype=None, trainable=True, autocast=True, regularizer=None, constraint=None, aggregation="mean", name=None):  # type: ignore
+    def add_weight(  # type: ignore
+        self,
+        shape=None,
+        initializer=None,
+        dtype=None,
+        trainable=True,
+        autocast=True,
+        regularizer=None,
+        constraint=None,
+        aggregation='mean',
+        name=None,
+    ):
         """Override add_weight to make it adds a constant weight."""
         if dtype is not None:
             dtype = backend.standardize_dtype(dtype)
         else:
             dtype = self.variable_dtype
         initializer = initializers.get(initializer)
-        assert initializer is not None, f"Could not interpret initializer: {initializer}"
+        assert initializer is not None, f'Could not interpret initializer: {initializer}'
         value = initializer(shape, dtype=dtype)
         if ops.size(value) == 1:
             value = ops.squeeze(value)
@@ -50,5 +60,5 @@ class FrozenFixedPointQuantizer(FixedPointQuantizerKBI):
 
     def get_config(self):
         config = super().get_config()
-        config.pop("trainable")
+        config.pop('trainable')
         return config

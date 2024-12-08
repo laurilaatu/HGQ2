@@ -14,8 +14,8 @@ from .softmax import QSoftmax
 
 
 def _get_output_shape(output_rank, known_last_dims, input_shape):
-    n = (output_rank - len(known_last_dims))
-    return list(input_shape[1:n + 1]) + list(known_last_dims)
+    n = output_rank - len(known_last_dims)
+    return list(input_shape[1 : n + 1]) + list(known_last_dims)
 
 
 class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
@@ -30,8 +30,8 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         use_bias=True,
         output_shape=None,
         attention_axes=None,
-        kernel_initializer="glorot_uniform",
-        bias_initializer="zeros",
+        kernel_initializer='glorot_uniform',
+        bias_initializer='zeros',
         kernel_regularizer=None,
         bias_regularizer=None,
         activity_regularizer=None,
@@ -74,14 +74,16 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
     def _get_common_kwargs_for_sublayer(self):
         common_kwargs: dict = super()._get_common_kwargs_for_sublayer()
         # Inject quantizer and ebops configs to sub QEinsumDense layers.
-        common_kwargs.update({
-            'iq_conf': self._qkvo_iq_conf,
-            'kq_conf': self._qkvo_kq_conf,
-            'bq_conf': self._qkvo_bq_conf,
-            'oq_conf': self._qkvo_oq_conf,
-            'enable_ebops': self.enable_ebops,
-            'beta0': self._beta0.clone(),
-        })
+        common_kwargs.update(
+            {
+                'iq_conf': self._qkvo_iq_conf,
+                'kq_conf': self._qkvo_kq_conf,
+                'bq_conf': self._qkvo_bq_conf,
+                'oq_conf': self._qkvo_oq_conf,
+                'enable_ebops': self.enable_ebops,
+                'beta0': self._beta0.clone(),
+            }
+        )
         return common_kwargs
 
     def build(
@@ -98,7 +100,9 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             key: Optional shape of the `key` tensor.
         """
 
-        # Copied and modified from keras MultiHeadAttention, substituted EinsumDense with QEinsumDense and added sequence length (shape) to its output shape when initializing, if known.
+        # Copied and modified from keras MultiHeadAttention, substituted
+        # EinsumDense with QEinsumDense and added sequence length (shape) to its
+        # output shape when initializing, if known.
         key_shape = value_shape if key_shape is None else key_shape
 
         # if query_shape[-1] != value_shape[-1]:
@@ -110,54 +114,66 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
 
         if value_shape[1:-1] != key_shape[1:-1]:
             raise ValueError(
-                "All dimensions of `value` and `key`, except the last one, "
-                f"must be equal. Received: value_shape={value_shape} and "
-                f"key_shape={key_shape}"
+                'All dimensions of `value` and `key`, except the last one, '
+                f'must be equal. Received: value_shape={value_shape} and '
+                f'key_shape={key_shape}',
             )
 
         query_rank = len(query_shape)
         value_rank = len(value_shape)
         key_rank = len(key_shape)
         einsum_equation, bias_axes, output_rank = _build_proj_equation(
-            query_rank - 1, bound_dims=1, output_dims=2
+            query_rank - 1,
+            bound_dims=1,
+            output_dims=2,
         )
         self._query_dense = QEinsumDense(
             einsum_equation,
             output_shape=_get_output_shape(
-                output_rank - 1, [self._num_heads, self._key_dim], query_shape
+                output_rank - 1,
+                [self._num_heads, self._key_dim],
+                query_shape,
             ),
             bias_axes=bias_axes if self._use_bias else None,
-            name="query",
+            name='query',
             enable_iq=self.enable_iq,
             enable_oq=True,
             **self._get_common_kwargs_for_sublayer(),
         )
         self._query_dense.build(query_shape)
         einsum_equation, bias_axes, output_rank = _build_proj_equation(
-            key_rank - 1, bound_dims=1, output_dims=2
+            key_rank - 1,
+            bound_dims=1,
+            output_dims=2,
         )
         self._key_dense = QEinsumDense(
             einsum_equation,
             output_shape=_get_output_shape(
-                output_rank - 1, [self._num_heads, self._key_dim], key_shape
+                output_rank - 1,
+                [self._num_heads, self._key_dim],
+                key_shape,
             ),
             bias_axes=bias_axes if self._use_bias else None,
-            name="key",
+            name='key',
             enable_iq=self.enable_iq,
             enable_oq=True,
             **self._get_common_kwargs_for_sublayer(),
         )
         self._key_dense.build(key_shape)
         einsum_equation, bias_axes, output_rank = _build_proj_equation(
-            value_rank - 1, bound_dims=1, output_dims=2
+            value_rank - 1,
+            bound_dims=1,
+            output_dims=2,
         )
         self._value_dense = QEinsumDense(
             einsum_equation,
             output_shape=_get_output_shape(
-                output_rank - 1, [self._num_heads, self._value_dim], value_shape
+                output_rank - 1,
+                [self._num_heads, self._value_dim],
+                value_shape,
             ),
             bias_axes=bias_axes if self._use_bias else None,
-            name="value",
+            name='value',
             enable_iq=self.enable_iq,
             enable_oq=True,
             **self._get_common_kwargs_for_sublayer(),
@@ -171,34 +187,34 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         self._output_dense = self._make_output_dense(
             query_shape,
             self._get_common_kwargs_for_sublayer(),
-            "attention_output",
+            'attention_output',
         )
         output_dense_input_shape = list(
-            self._query_dense.compute_output_shape(query_shape)
+            self._query_dense.compute_output_shape(query_shape),
         )
         output_dense_input_shape[-1] = self._value_dim
         self._output_dense.build(tuple(output_dense_input_shape))
 
         if self.enable_ebops:
             self._beta = self.add_weight(
-                name="beta",
+                name='beta',
                 shape=(),
                 initializer=self._beta0,
-                trainable=False
+                trainable=False,
             )
             self._ebops = self.add_weight(
-                name="ebops",
+                name='ebops',
                 shape=(),
-                initializer=Constant(0.),
+                initializer=Constant(0.0),
                 trainable=False,
-                dtype='uint32'
+                dtype='uint32',
             )
         else:
             self._beta = None
             self._ebops = None
 
-        self._dot_product_ebops_equation = self._dot_product_equation.split("->", 1)[0] + '->'
-        self._combine_ebops_equation = self._combine_equation.split("->", 1)[0] + '->'
+        self._dot_product_ebops_equation = self._dot_product_equation.split('->', 1)[0] + '->'
+        self._combine_ebops_equation = self._combine_equation.split('->', 1)[0] + '->'
         self.built = True
 
     def _make_output_dense(self, query_shape, common_kwargs, name=None):
@@ -213,7 +229,9 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             Projection layer.
         """
 
-        # Copied and modified from keras MultiHeadAttention, substituted EinsumDense with QEinsumDense and added sequence length (shape) to its output shape when initializing, if known.
+        # Copied and modified from keras MultiHeadAttention, substituted
+        # EinsumDense with QEinsumDense and added sequence length (shape) to its
+        # output shape when initializing, if known.
         query_rank = len(query_shape)
         if self._output_shape:
             if not isinstance(self._output_shape, Sized):
@@ -223,7 +241,9 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         else:
             output_shape = [query_shape[-1]]
         einsum_equation, bias_axes, output_rank = _build_proj_equation(
-            query_rank - 1, bound_dims=2, output_dims=len(output_shape)
+            query_rank - 1,
+            bound_dims=2,
+            output_dims=len(output_shape),
         )
         return QEinsumDense(
             einsum_equation,
@@ -258,8 +278,9 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         ) = _build_attention_equation(rank, attn_axes=self._attention_axes)
         norm_axes = tuple(
             range(
-                attn_scores_rank - len(self._attention_axes), attn_scores_rank
-            )
+                attn_scores_rank - len(self._attention_axes),
+                attn_scores_rank,
+            ),
         )
         _inverse_sqrt_key_dim = 1.0 / math.sqrt(float(self._key_dim))
         self._softmax = QSoftmax(
@@ -278,7 +299,9 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             enable_ebops=self.enable_ebops,
         )
         self._dropout_layer = Dropout(
-            rate=self._dropout, dtype=self.dtype_policy, seed=self.seed
+            rate=self._dropout,
+            dtype=self.dtype_policy,
+            seed=self.seed,
         )
         self._inverse_sqrt_key_dim = 1.0
         # Build softmax and dropout layers if possible.
@@ -293,25 +316,27 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
 
     def get_config(self):
         config = super().get_config()
-        config.update({
-            'qkv_iq_conf': self._qkvo_iq_conf,
-            'qkv_kq_conf': self._qkvo_kq_conf,
-            'qkv_bq_conf': self._qkvo_bq_conf,
-            'qkv_oq_conf': self._qkvo_oq_conf,
-            'softmax_iq_conf': self._softmax_iq_conf,
-            'softmax_exp_iq_conf': self._softmax_exp_iq_conf,
-            'softmax_exp_oq_conf': self._softmax_exp_oq_conf,
-            'softmax_inv_iq_conf': self._softmax_inv_iq_conf,
-            'softmax_inv_oq_conf': self._softmax_inv_oq_conf,
-            'stable_softmax': self._stable_softmax,
-        })
+        config.update(
+            {
+                'qkv_iq_conf': self._qkvo_iq_conf,
+                'qkv_kq_conf': self._qkvo_kq_conf,
+                'qkv_bq_conf': self._qkvo_bq_conf,
+                'qkv_oq_conf': self._qkvo_oq_conf,
+                'softmax_iq_conf': self._softmax_iq_conf,
+                'softmax_exp_iq_conf': self._softmax_exp_iq_conf,
+                'softmax_exp_oq_conf': self._softmax_exp_oq_conf,
+                'softmax_inv_iq_conf': self._softmax_inv_iq_conf,
+                'softmax_inv_oq_conf': self._softmax_inv_oq_conf,
+                'stable_softmax': self._stable_softmax,
+            }
+        )
         return config
 
     def _post_build(self):
         if self._enable_oq:
-            assert hasattr(self, '_oq'), f"Output Quantizer is not defined for {self.name}, but enable_oq is True."
+            assert hasattr(self, '_oq'), f'Output Quantizer is not defined for {self.name}, but enable_oq is True.'
         for sublayer in self._flatten_layers():
-            assert sublayer.built, f"Sublayer {sublayer.name} is not built for {self.name}"
+            assert sublayer.built, f'Sublayer {sublayer.name} is not built for {self.name}'
 
     def _compute_ebops(self, query_shape, value_shape, key_shape=None):
         Q_shape = (1,) + self._query_dense.full_output_shape[1:]
@@ -320,7 +345,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         attn_score_shape = (1, self._num_heads, *query_shape[1:-1], *value_shape[1:-1])
 
         if self.parallelization_factor > 0:
-            assert len(query_shape) == 3, f"EBOPs computation is only supported for 3D tensors, but got {query_shape}."
+            assert len(query_shape) == 3, f'EBOPs computation is only supported for 3D tensors, but got {query_shape}.'
             b, *n, h, dk = Q_shape
             b, *n, h, dv = K_shape
             b, *n, h, dv = V_shape
@@ -344,14 +369,16 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
 
     @property
     def ebops(self):
-        ebops = sum((  # type: ignore
-            self._query_dense.ebops,
-            self._key_dense.ebops,
-            self._value_dense.ebops,
-            self._softmax.ebops,
-            self._output_dense.ebops,
-            ops.convert_to_tensor(self._ebops),
-        ))
+        ebops = sum(
+            (  # type: ignore
+                self._query_dense.ebops,
+                self._key_dense.ebops,
+                self._value_dense.ebops,
+                self._softmax.ebops,
+                self._output_dense.ebops,
+                ops.convert_to_tensor(self._ebops),
+            )
+        )
 
         return round(ops.convert_to_numpy(ebops))  # type: ignore
 

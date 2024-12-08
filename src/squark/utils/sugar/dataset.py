@@ -20,7 +20,7 @@ class Dataset(PyDataset):
         self.drop_last = drop_last
 
     def __len__(self):
-        assert self.batch_size is not None, "batch_size must be set"
+        assert self.batch_size is not None, 'batch_size must be set'
         if self.drop_last:
             return len(self.x) // self.batch_size
         return ceil(len(self.x) / self.batch_size)

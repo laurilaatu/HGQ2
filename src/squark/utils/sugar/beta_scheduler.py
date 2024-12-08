@@ -1,7 +1,7 @@
 from collections.abc import Callable, Sequence
 
 import numpy as np
-from keras import Variable, ops
+from keras import ops
 from keras.api.callbacks import Callback
 from keras.api.models import Model
 
@@ -47,7 +47,6 @@ class PieceWiseSchedule:
     """
 
     def __init__(self, intervals: Sequence[tuple[int, float, str]]):
-
         intervals = sorted(intervals, key=lambda v: v[0])
         epochs = [v[0] for v in intervals]
         betas = [v[1] for v in intervals]
@@ -76,5 +75,5 @@ class PieceWiseSchedule:
             case 'constant':
                 beta = beta0
             case _:
-                raise ValueError(f"Invalid interpolation type: {interp}")
+                raise ValueError(f'Invalid interpolation type: {interp}')
         return float(beta)

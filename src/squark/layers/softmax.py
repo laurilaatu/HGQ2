@@ -22,13 +22,13 @@ class QSoftmax(QLayerBaseSingleInput):
         allow_heterogeneous_table: bool = False,
         input_scaler: float = 1.0,
         parallelization_factor: int = -1,
-        **kwargs
+        **kwargs,
     ):
         self.supports_masking = True
         super().__init__(iq_conf=iq_conf, **kwargs)  # type: ignore
         self.stable = stable
         self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
-        assert not allow_heterogeneous_table, "Heterogeneous shall never be used, unless you know what you are doing."
+        assert not allow_heterogeneous_table, 'Heterogeneous shall never be used, unless you know what you are doing.'
         self._allow_heterogeneous_table = allow_heterogeneous_table
         self.parallelization_factor = parallelization_factor
 
@@ -58,7 +58,7 @@ class QSoftmax(QLayerBaseSingleInput):
             enable_iq=True,
             enable_oq=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
-            name=f"{self.name}_inv_table",
+            name=f'{self.name}_inv_table',
             enable_ebops=self.enable_ebops,
             beta0=self._beta0.clone(),
         )
@@ -69,7 +69,7 @@ class QSoftmax(QLayerBaseSingleInput):
             enable_iq=self.stable,
             enable_oq=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
-            name=f"{self.name}_exp_table",
+            name=f'{self.name}_exp_table',
             enable_ebops=self.enable_ebops,
             beta0=self._beta0.clone(),
         )
@@ -124,17 +124,19 @@ class QSoftmax(QLayerBaseSingleInput):
 
     def get_config(self):
         config = super().get_config()
-        config.update({
-            "axis": self.axis,
-            "stable": self.stable,
-            "exp_oq_conf": self.exp_table.oq.config,
-            "exp_iq_conf": self.exp_table.iq.config if self.stable else None,
-            "inv_oq_conf": self.inv_table.oq.config,
-            "inv_iq_conf": self.inv_table.iq.config,
-            "allow_heterogeneous_table": self._allow_heterogeneous_table,
-            "input_scaler": self.input_scaler,
-            "parallelization_factor": self.parallelization_factor,
-        })
+        config.update(
+            {
+                'axis': self.axis,
+                'stable': self.stable,
+                'exp_oq_conf': self.exp_table.oq.config,
+                'exp_iq_conf': self.exp_table.iq.config if self.stable else None,
+                'inv_oq_conf': self.inv_table.oq.config,
+                'inv_iq_conf': self.inv_table.iq.config,
+                'allow_heterogeneous_table': self._allow_heterogeneous_table,
+                'input_scaler': self.input_scaler,
+                'parallelization_factor': self.parallelization_factor,
+            }
+        )
         return config
 
     def compute_output_shape(self, input_shape):
@@ -142,9 +144,11 @@ class QSoftmax(QLayerBaseSingleInput):
 
     @property
     def ebops(self):
-        ebops = sum((  # type: ignore
-            ops.convert_to_tensor(self._ebops),
-            self.exp_table.ebops,
-            self.inv_table.ebops,
-        ))
+        ebops = sum(
+            (  # type: ignore
+                ops.convert_to_tensor(self._ebops),
+                self.exp_table.ebops,
+                self.inv_table.ebops,
+            )
+        )
         return round(ops.convert_to_numpy(ebops))  # type: ignore

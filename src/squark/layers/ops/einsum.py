@@ -5,7 +5,7 @@ from ..core import QLayerBaseMultiInputs
 
 class QMatmul(QLayerBaseMultiInputs):
     def build(self, input_shape):
-        assert len(input_shape) == 2, "QMatmul requires exactly 2 inputs."
+        assert len(input_shape) == 2, 'QMatmul requires exactly 2 inputs.'
         super().build(input_shape)
 
     def call(self, inputs, training=None):

@@ -5,8 +5,10 @@ from keras.src import backend
 
 from ..utils.misc import numbers
 
+__all__ = ['MinMax', 'Min', 'Max']
 
-@register_keras_serializable(package="squark")
+
+@register_keras_serializable(package='squark')
 class MinMax(Constraint):
     """Constrains the weights to between min_value and max_value."""
 
@@ -19,10 +21,10 @@ class MinMax(Constraint):
         return ops.clip(w, self.min_value, self.max_value)
 
     def get_config(self):
-        return {"min_value": self.min_value, "max_value": self.max_value}
+        return {'min_value': self.min_value, 'max_value': self.max_value}
 
 
-@register_keras_serializable(package="squark")
+@register_keras_serializable(package='squark')
 class Min(Constraint):
     """Constrains the weights to greater or equal than min_value."""
 
@@ -34,10 +36,10 @@ class Min(Constraint):
         return ops.maximum(w, self.min_value)
 
     def get_config(self):
-        return {"min_value": self.min_value}
+        return {'min_value': self.min_value}
 
 
-@register_keras_serializable(package="squark")
+@register_keras_serializable(package='squark')
 class Max(Constraint):
     """Constrains the weights to less or equal than max_value."""
 
@@ -49,4 +51,4 @@ class Max(Constraint):
         return ops.minimum(w, self.max_value)
 
     def get_config(self):
-        return {"max_value": self.max_value}
+        return {'max_value': self.max_value}

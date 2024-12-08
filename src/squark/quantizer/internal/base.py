@@ -2,16 +2,16 @@ from collections.abc import Sequence
 
 import numpy as np
 from keras import ops
+from keras.api.saving import register_keras_serializable
+from keras.src import backend
 from keras.src.layers import Layer
 
 numbers = int | float | np.integer | np.floating
-from keras.api.saving import register_keras_serializable
-from keras.src import backend
 
 
 def _large_number(dtype):
     """Return a Large negative number based on dtype."""
-    if backend.standardize_dtype(dtype) == "float16":
+    if backend.standardize_dtype(dtype) == 'float16':
         return 3e4
     return 1e9
 
@@ -24,6 +24,7 @@ def round_conv(x):
         if upstream is None:
             (upstream,) = args
         return upstream
+
     return qx, grad
 
 
@@ -63,7 +64,7 @@ def check_axis(axis: Sequence[int], ndim: int):
         List of positive integers representing the axis.
     """
     axis = [a if a >= 0 else a + ndim for a in axis]
-    assert all(0 <= a < ndim for a in axis), f"Invalid axis {axis} for shape {ndim}."
+    assert all(0 <= a < ndim for a in axis), f'Invalid axis {axis} for shape {ndim}.'
     return axis
 
 
@@ -71,22 +72,22 @@ class TrainableQuantizerBase(Layer):
     """Abstract base class for all quantizers."""
 
     def __init__(self, **kwargs):
-        homogeneous_axis = kwargs.pop("homogeneous_axis", ())
-        heterogeneous_axis = kwargs.pop("heterogeneous_axis", None)
-        bw_mapper: BitwidthMapperBase = kwargs.pop("bw_mapper", None) or DefaultBitwidthMapper(heterogeneous_axis, homogeneous_axis)
+        homogeneous_axis = kwargs.pop('homogeneous_axis', ())
+        heterogeneous_axis = kwargs.pop('heterogeneous_axis', None)
+        bw_mapper: BitwidthMapperBase = kwargs.pop('bw_mapper', None) or DefaultBitwidthMapper(
+            heterogeneous_axis, homogeneous_axis
+        )
         self.bw_mapper = bw_mapper
-        self._seed = kwargs.pop("seed", int(np.random.randint(0, 2**32)))
+        self._seed = kwargs.pop('seed', int(np.random.randint(0, 2**32)))
         super().__init__(**kwargs)
         self.supports_masking = True
 
-    def call(self, inputs, training=None):
-        ...
+    def call(self, inputs, training=None): ...
 
-    def __repr__(self) -> str:
-        ...
+    def __repr__(self) -> str: ...
 
     def quantize(self, mode):  # type: ignore
-        raise ValueError("Quantize method is built-in for keras v3. This method is disabled in this package.")
+        raise ValueError('Quantize method is built-in for keras v3. This method is disabled in this package.')
 
     def compute_output_shape(self, input_shape):
         return input_shape
@@ -129,17 +130,19 @@ class DummyQuantizer(TrainableQuantizerBase):
         return backend.epsilon()
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(name={self.name}, built={self.built})"
+        return f'{self.__class__.__name__}(name={self.name}, built={self.built})'
 
 
-@register_keras_serializable(package="squark")
+@register_keras_serializable(package='squark')
 class DefaultBitwidthMapper(BitwidthMapperBase):
     """Default bitwidth mapper for HG quantizers."""
 
     def __init__(self, heterogeneous_axis: Sequence[int] | None = None, homogeneous_axis: Sequence[int] | None = None, **kwargs):
-        _shape_inferenced = kwargs.pop("_shape_inferenced", False)
+        _shape_inferenced = kwargs.pop('_shape_inferenced', False)
         if not _shape_inferenced:
-            assert (heterogeneous_axis is None) ^ (homogeneous_axis is None), "Only one of quantize_dims and skip_dims can be specified."
+            assert (heterogeneous_axis is None) ^ (
+                homogeneous_axis is None
+            ), 'Only one of quantize_dims and skip_dims can be specified.'
         self.heterogeneous_axis = heterogeneous_axis
         self.homogeneous_axis = homogeneous_axis
         self._shape_inferenced = _shape_inferenced
@@ -157,7 +160,9 @@ class DefaultBitwidthMapper(BitwidthMapperBase):
 
         weight_shape = [1] * N
         for i in self.heterogeneous_axis:  # type: ignore
-            assert input_shape[i] is not None, f"Unable to heterogeneously quantize axis {i} with unknown shape. Input shape: {input_shape}."
+            assert (
+                input_shape[i] is not None
+            ), f'Unable to heterogeneously quantize axis {i} with unknown shape. Input shape: {input_shape}.'
             weight_shape[i] = input_shape[i]
         self._shape_inferenced = True
         return tuple(weight_shape)

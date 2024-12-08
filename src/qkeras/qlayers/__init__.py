@@ -1,10 +1,9 @@
 import inspect
-from collections.abc import Sequence
 
 from squark import layers
-from squark.config import QuantizerConfig, QuantizerConfigScope
+from squark.config import QuantizerConfigScope
 
-from ..initializers import QInitializer  # TODO: use qkeras initializers when called from here
+from ..initializers import QInitializer as QInitializer  # TODO: use qkeras initializers when called from here
 from ..quantizers import get_quantizer
 
 kw_map = {
@@ -41,7 +40,7 @@ def qkeras_layer_wrap(cls: type):
             if k not in kw_map_inv:
                 continue
             new_k = kw_map_inv[k]
-            assert new_k not in kwargs, f"Duplicate key {new_k}."
+            assert new_k not in kwargs, f'Duplicate key {new_k}.'
             del kwargs[k]
             v = v if not isinstance(v, str) else get_quantizer(v)
             kwargs[new_k] = v

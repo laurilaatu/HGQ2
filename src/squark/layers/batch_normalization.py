@@ -9,7 +9,6 @@ from .core.base import QLayerBaseSingleInput
 
 
 class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
-
     @property
     def beta(self):
         if self._beta is None:
@@ -20,18 +19,18 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
     def beta(self, value):
         """Workaround for setting the batch normalization beta during building."""
         if self.built:
-            raise AttributeError("Cannot set beta after build.")
+            raise AttributeError('Cannot set beta after build.')
         self.bn_beta = value
 
     @property
     def gamma(self):
-        raise AttributeError("Use `bn_gamma` instead of `gamma`.")
+        raise AttributeError('Use `bn_gamma` instead of `gamma`.')
 
     @gamma.setter
     def gamma(self, value):
         """Workaround for setting the batch normalization gamma during building."""
         if self.built:
-            raise AttributeError("Cannot set gamma after build.")
+            raise AttributeError('Cannot set gamma after build.')
         self.bn_gamma = value
 
     def __init__(
@@ -41,10 +40,10 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
         epsilon=1e-3,
         center=True,
         scale=True,
-        beta_initializer="zeros",
-        gamma_initializer="ones",
-        moving_mean_initializer="zeros",
-        moving_variance_initializer="ones",
+        beta_initializer='zeros',
+        gamma_initializer='ones',
+        moving_mean_initializer='zeros',
+        moving_variance_initializer='ones',
         beta_regularizer=None,
         gamma_regularizer=None,
         beta_constraint=None,
@@ -59,9 +58,9 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
         super().__init__(**kwargs)
 
         kq_conf = kq_conf or QuantizerConfig('default', 'weight')
-        self._kq = Quantizer(kq_conf, name=f"{self.name}_kq")
+        self._kq = Quantizer(kq_conf, name=f'{self.name}_kq')
         bq_conf = bq_conf or QuantizerConfig('default', 'bias')
-        self._bq = Quantizer(bq_conf, name=f"{self.name}_bq")
+        self._bq = Quantizer(bq_conf, name=f'{self.name}_bq')
 
     @property
     def kq(self):
@@ -89,8 +88,6 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
         mean = ops.cast(self.moving_mean, self.dtype)
         variance = ops.cast(self.moving_variance, self.dtype)
 
-        shape = self._shape
-
         if self.scale:
             bn_gamma = ops.cast(self.bn_gamma, self.dtype)
         else:
@@ -112,16 +109,15 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
         return self.kq(scale, training=False), self.bq(offset, training=False)
 
     def _scaler_and_offset_train(self, qinputs, mask):
-
         moving_mean = ops.cast(self.moving_mean, ops.dtype(qinputs))
         moving_variance = ops.cast(self.moving_variance, ops.dtype(qinputs))
 
         mean, variance = self._moments(qinputs, mask)  # type: ignore
         self.moving_mean.assign(  # type: ignore
-            moving_mean * self.momentum + mean * (1.0 - self.momentum)  # type: ignore
+            moving_mean * self.momentum + mean * (1.0 - self.momentum),  # type: ignore
         )
         self.moving_variance.assign(  # type: ignore
-            moving_variance * self.momentum + variance * (1.0 - self.momentum)  # type: ignore
+            moving_variance * self.momentum + variance * (1.0 - self.momentum),  # type: ignore
         )
 
         if self.scale:
@@ -145,16 +141,16 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
             if len(mask.shape) != len(inputs.shape) - 1:
                 # Raise a value error
                 raise ValueError(
-                    "The mask provided should be one dimension less "
-                    "than the inputs. Received: "
-                    f"mask.shape={mask.shape}, inputs.shape={inputs.shape}"
+                    'The mask provided should be one dimension less '
+                    'than the inputs. Received: '
+                    f'mask.shape={mask.shape}, inputs.shape={inputs.shape}',
                 )
 
         input_dtype = standardize_dtype(inputs.dtype)
-        if input_dtype in ("float16", "bfloat16") and training:
+        if input_dtype in ('float16', 'bfloat16') and training:
             # BN is prone to overflowing for float16/bfloat16 inputs, so we opt
             # out BN for mixed precision.
-            inputs = ops.cast(inputs, "float32")
+            inputs = ops.cast(inputs, 'float32')
 
         if self.enable_iq:
             inputs = self.iq(inputs, training=training)
@@ -174,16 +170,18 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
 
         outputs = inputs * qscale + qoffset  # type: ignore
 
-        if input_dtype in ("float16", "bfloat16"):
+        if input_dtype in ('float16', 'bfloat16'):
             outputs = ops.cast(outputs, input_dtype)
         return outputs
 
     def get_config(self):
         config = super().get_config()
-        config.update({
-            'kq_conf': self.kq.config,
-            'bq_conf': self.bq.config,
-        })
+        config.update(
+            {
+                'kq_conf': self.kq.config,
+                'bq_conf': self.bq.config,
+            }
+        )
         return config
 
     def _compute_ebops(self, shape):

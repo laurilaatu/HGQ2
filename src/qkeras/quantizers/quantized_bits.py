@@ -7,12 +7,12 @@ import keras
 import numpy as np
 from keras import ops
 from keras.api.saving import register_keras_serializable
+from quantizers import get_fixed_quantizer
 
 from squark.config import QuantizerConfig
 from squark.constraints import Min, MinMax
-from squark.quantizer import Quantizer
 from squark.quantizer.config import KBIConfig
-from squark.quantizer.internal import DefaultBitwidthMapper, FixedPointQuantizerKBI, get_fixed_quantizer
+from squark.quantizer.internal import DefaultBitwidthMapper, FixedPointQuantizerKBI
 from squark.utils.misc import numbers
 
 from .frozen_quantizer import FrozenFixedPointQuantizer
@@ -75,12 +75,12 @@ class quantized_bits(QuantizerConfig):
             The regularizer for the integer width. Only used if integer width is trainable, by default None
         """
 
-        assert bits > 0, "bits must be greater than 0"
+        assert bits > 0, 'bits must be greater than 0'
         if isinstance(alpha, numbers):
-            assert alpha > 0, "alpha must be greater than 0 if it is a number"
+            assert alpha > 0, 'alpha must be greater than 0 if it is a number'
         if isinstance(alpha, str):
             assert alpha == 'trainable_po2', "alpha must be 'trainable_po2' if it is a string"
-        self.trainable = (alpha == 'trainable_po2')
+        self.trainable = alpha == 'trainable_po2'
 
         if use_variables is None:
             use_variables = self.trainable
@@ -88,8 +88,8 @@ class quantized_bits(QuantizerConfig):
             assert use_variables, "use_variables must be True if alpha is set to 'trainable_po2'"
         self.use_variables = use_variables
 
-        assert var_name is None, "var_name is not supported"
-        assert use_ste, "only use_ste=True is supported"
+        assert var_name is None, 'var_name is not supported'
+        assert use_ste, 'only use_ste=True is supported'
 
         scaler = alpha if isinstance(alpha, numbers) else None
         heterogeneous_axis = ()
@@ -155,6 +155,7 @@ class quantized_bits(QuantizerConfig):
             if name == '_b':
                 value.trainable = False
             return original_setattr_hook(name, value)
+
         quantizer._setattr_hook = types.MethodType(_setattr_hook, quantizer)
 
         return quantizer
@@ -167,18 +168,22 @@ class quantized_bits(QuantizerConfig):
             alpha = 'trainable_po2' if self.trainable else 1
         stochastic = 'S_RND' in self.config['round_mode']
         cls_str = self.__class__.__name__
-        return f"{cls_str}({b}, {i}, symmetric={symmetric}, keep_negative={k}, alpha={alpha}, use_stochastic_rounding={stochastic})"
+        return (
+            f'{cls_str}({b}, {i}, symmetric={symmetric}, keep_negative={k}, alpha={alpha}, use_stochastic_rounding={stochastic})'
+        )
 
     def __repr__(self):
         return str(self)
 
     def __call__(self, inputs, training=None):
-        assert training is None, "quantized_bits in s-quark is merely a configuration. It does not support training. Call get_quantizer() to get the actual quantizer."
+        assert (
+            training is None
+        ), 'quantized_bits in s-quark is merely a configuration. It does not support training. Call get_quantizer() to get the actual quantizer.'
         return_np = False
         if not ops.is_tensor(inputs):
             return_np = True
             inputs = np.asarray(inputs)
-            if not inputs.dtype in (np.float16, np.float32):
+            if inputs.dtype not in (np.float16, np.float32):
                 inputs = inputs.astype(np.float32)
         k, b, i = self.keep_negative, self.bits, self.integers
 
@@ -198,18 +203,18 @@ class quantized_bits(QuantizerConfig):
     def max(self):
         b, i = self.bits, self.integers
         f = b - i
-        return 2.**i - 2.**-f
+        return 2.0**i - 2.0**-f
 
     @property
     def min(self):
         if not self.keep_negative:
-            return 0.
+            return 0.0
         if self.symmetric:
             return -self.max
         else:
-            return -2.**self.integers
+            return -(2.0**self.integers)
 
-    def get_config(self):
+    def get_config(self):  # type: ignore
         config = dict(
             bits=self.bits,
             integer=self.integers,
@@ -225,7 +230,7 @@ class quantized_bits(QuantizerConfig):
             bc=self.config['bc'],
             br=self.config['br'],
             ic=self.config['ic'],
-            ir=self.config['ir']
+            ir=self.config['ir'],
         )
         return config
 
@@ -233,7 +238,7 @@ class quantized_bits(QuantizerConfig):
     def from_string(cls, string: str):
         """Create a quantized_bits configuration from a string representation."""
         if not string.startswith('quantized_bits(') or not string.endswith(')'):
-            raise ValueError(f"Invalid string representation for quantized_bits: {string}")
+            raise ValueError(f'Invalid string representation for quantized_bits: {string}')
         args, kwargs = parse_string_to_args(string.split('(', 1)[1][:-1])
         signature = inspect.signature(cls.__init__)
         # remove self
@@ -248,7 +253,7 @@ class quantized_relu(quantized_bits):
         self,
         bits: int = 8,
         integer: int = 0,
-        alpha: numbers | str | None = 1.,
+        alpha: numbers | str | None = 1.0,
         use_stochastic_rounding: bool = False,
         scale_axis: Sequence[int] | None = None,
         qnoise_factor: float | None = None,

@@ -9,16 +9,16 @@ from ..core.base import QLayerBaseSingleInput
 
 class QSum(QLayerBaseSingleInput):
     def __init__(
-            self,
-            iq_conf: QuantizerConfig | None = None,
-            axis: int | Sequence[int] = -1,
-            pow2_scale: float = 1.0,
-            keepdims: bool = False,
-            **kwargs
+        self,
+        iq_conf: QuantizerConfig | None = None,
+        axis: int | Sequence[int] = -1,
+        pow2_scale: float = 1.0,
+        keepdims: bool = False,
+        **kwargs,
     ):
         super().__init__(iq_conf=iq_conf, **kwargs)
         self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
-        self._scale = float(2.**log2(pow2_scale))
+        self._scale = float(2.0 ** log2(pow2_scale))
         self._keepdims = keepdims
 
     @property
@@ -44,15 +44,15 @@ class QSum(QLayerBaseSingleInput):
 
 class QMeanPow2(QSum):
     def __init__(
-            self,
-            iq_conf: QuantizerConfig | None = None,
-            axis: int | Sequence[int] = -1,
-            keepdims: bool = False,
-            **kwargs
+        self,
+        iq_conf: QuantizerConfig | None = None,
+        axis: int | Sequence[int] = -1,
+        keepdims: bool = False,
+        **kwargs,
     ):
         super().__init__(iq_conf=iq_conf, axis=axis, keepdims=keepdims, **kwargs)
 
     def build(self, input_shape):
         super().build(input_shape)
         scale = 1.0 / prod([input_shape[i] for i in self.axis])
-        self._scale = round(2.**log2(scale))
+        self._scale = round(2.0 ** log2(scale))

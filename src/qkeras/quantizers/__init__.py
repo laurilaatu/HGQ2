@@ -7,4 +7,4 @@ def get_quantizer(str_conf: str):
     name = str_conf.split('(', 1)[0]
     if name in globals():
         return globals()[name].from_string(str_conf)
-    raise ValueError(f"Unknown quantizer: {name}")
+    raise ValueError(f'Unknown quantizer: {name}')

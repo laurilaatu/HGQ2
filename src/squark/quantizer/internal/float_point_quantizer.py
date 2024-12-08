@@ -1,10 +1,8 @@
 import keras
-import numpy as np
 from keras import ops
 from keras.api.constraints import Constraint
 from keras.api.initializers import Constant, Initializer
 from keras.api.regularizers import Regularizer
-from keras.src import backend
 from quantizers.fixed_point.fixed_point_ops import round_conv
 from quantizers.minifloat.float_point_ops import float_quantize
 
@@ -52,7 +50,7 @@ class FloatPointQuantizer(TrainableQuantizerBase):
         mr: Regularizer | None = None,
         er: Regularizer | None = None,
         e0r: Regularizer | None = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self._m0 = m0 if isinstance(m0, Initializer) else Constant(float(m0))
@@ -69,28 +67,28 @@ class FloatPointQuantizer(TrainableQuantizerBase):
         super().build(input_shape)
         bw_shape = self.bw_mapper.inference_weight_shape(input_shape)
         self._m = self.add_weight(
-            name="m",
+            name='m',
             shape=bw_shape,
             initializer=self._m0,
             trainable=True,
             constraint=self.m_constraint,
-            regularizer=self.m_regularizer
+            regularizer=self.m_regularizer,
         )
         self._e = self.add_weight(
-            name="e",
+            name='e',
             shape=bw_shape,
             initializer=self._e0,
             trainable=True,
             constraint=self.e_constraint,
-            regularizer=self.e_regularizer
+            regularizer=self.e_regularizer,
         )
         self._e0 = self.add_weight(
-            name="e0",
+            name='e0',
             shape=bw_shape,
             initializer=self._e00,
             trainable=True,
             constraint=self.e0_constraint,
-            regularizer=self.e0_regularizer
+            regularizer=self.e0_regularizer,
         )
         super().build(input_shape)
 
@@ -108,7 +106,7 @@ class FloatPointQuantizer(TrainableQuantizerBase):
 
     @property
     def bits(self):
-        return self.m + self.e + 1.  # type: ignore
+        return self.m + self.e + 1.0  # type: ignore
 
     @property
     def min(self):
@@ -116,11 +114,11 @@ class FloatPointQuantizer(TrainableQuantizerBase):
 
     @property
     def max(self):
-        return 2.**(2**(self.e - 1.) + self.e0 - 1) * (2 - 2.**-self.m)  # type: ignore
+        return 2.0 ** (2 ** (self.e - 1.0) + self.e0 - 1) * (2 - 2.0**-self.m)  # type: ignore
 
     @property
     def epsilon(self):
-        return 2.**(-2**(self.e - 1) + self.e0 + 1) * (2.**-self.m)  # type: ignore
+        return 2.0 ** (-(2 ** (self.e - 1)) + self.e0 + 1) * (2.0**-self.m)  # type: ignore
 
     def call(self, inputs, training=None):
         m = self.bw_mapper.bw_to_x(self.m, ops.shape(inputs))
@@ -130,10 +128,10 @@ class FloatPointQuantizer(TrainableQuantizerBase):
 
     def __repr__(self):
         if not self.built:
-            return f"{self.__class__.__name__}(name={self.name}, built=False)"
+            return f'{self.__class__.__name__}(name={self.name}, built=False)'
         mstd, estd, e0std = float(ops.std(self.m)), float(ops.std(self.e)), float(ops.std(self.e0))  # type: ignore
         mmean, emean, e0mean = float(ops.mean(self.m)), float(ops.mean(self.e)), float(ops.mean(self.e0))  # type: ignore
-        mstr = f"{mmean:.2f}±{mstd:.2f}"
-        estr = f"{emean:.2f}±{estd:.2f}"
-        e0str = f"{e0mean:.2f}±{e0std:.2f}"
-        return f"{self.__class__.__name__}(m={mstr}, e={estr}, e0={e0str}, name={self.name})"
+        mstr = f'{mmean:.2f}±{mstd:.2f}'
+        estr = f'{emean:.2f}±{estd:.2f}'
+        e0str = f'{e0mean:.2f}±{e0std:.2f}'
+        return f'{self.__class__.__name__}(m={mstr}, e={estr}, e0={e0str}, name={self.name})'

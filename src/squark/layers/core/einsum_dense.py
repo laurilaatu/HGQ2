@@ -1,6 +1,5 @@
 from keras import ops
 from keras.api.layers import EinsumDense
-from keras.src.layers.core.einsum_dense import _analyze_einsum_string
 
 from ...quantizer import Quantizer
 from ...quantizer.config import QuantizerConfig
@@ -15,8 +14,8 @@ class QEinsumDense(QLayerBaseSingleInput, EinsumDense):
         output_shape,
         activation=None,
         bias_axes=None,
-        kernel_initializer="glorot_uniform",
-        bias_initializer="zeros",
+        kernel_initializer='glorot_uniform',
+        bias_initializer='zeros',
         kernel_regularizer=None,
         bias_regularizer=None,
         kernel_constraint=None,
@@ -30,9 +29,9 @@ class QEinsumDense(QLayerBaseSingleInput, EinsumDense):
         super().__init__(lora_rank=None, **kwargs)
 
         kq_conf = kq_conf or QuantizerConfig('default', 'weight')
-        self._kq = Quantizer(kq_conf, name=f"{self.name}_kq")
+        self._kq = Quantizer(kq_conf, name=f'{self.name}_kq')
         bq_conf = bq_conf or QuantizerConfig('default', 'bias')
-        self._bq = None if bias_axes is None else Quantizer(bq_conf, name=f"{self.name}_bq")
+        self._bq = None if bias_axes is None else Quantizer(bq_conf, name=f'{self.name}_bq')
 
     @property
     def kq(self):
@@ -77,10 +76,12 @@ class QEinsumDense(QLayerBaseSingleInput, EinsumDense):
 
     def get_config(self):
         config = super().get_config()
-        config.update({
-            'kq_conf': self.kq.config,
-            'bq_conf': self.bq.config if self.bq is not None else None,
-        })
+        config.update(
+            {
+                'kq_conf': self.kq.config,
+                'bq_conf': self.bq.config if self.bq is not None else None,
+            }
+        )
         return config
 
     @property
