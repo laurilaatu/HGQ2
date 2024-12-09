@@ -28,9 +28,10 @@ class QSoftmax(QLayerBaseSingleInput):
         super().__init__(iq_conf=iq_conf, **kwargs)  # type: ignore
         self.stable = stable
         self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
-        assert not allow_heterogeneous_table, 'Heterogeneous shall never be used, unless you know what you are doing.'
-        self._allow_heterogeneous_table = allow_heterogeneous_table
         self.parallelization_factor = parallelization_factor
+
+        assert not allow_heterogeneous_table, 'No hls4ml support; remove this check if you know what you are doing.'
+        self._allow_heterogeneous_table = allow_heterogeneous_table
 
         self.input_scaler = input_scaler
 

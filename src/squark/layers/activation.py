@@ -28,6 +28,9 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
     ):
         act_name = activation.__name__ if isinstance(activation, Callable) else activation
         assert act_name not in ('softmax', 'log_softmax'), f'activation {act_name} is not unary'
+        assert not allow_heterogeneous_table, 'No hls4ml support; remove this check if you know what you are doing.'
+
+        self._allow_heterogeneous_table = allow_heterogeneous_table
 
         if enable_oq:
             oq_conf = oq_conf or QuantizerConfig('default', 'table')
@@ -37,6 +40,7 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
             if not allow_heterogeneous_table:
                 oq_conf.config['homogeneous_axis'] = None
                 oq_conf.config['heterogeneous_axis'] = ()
+
         super().__init__(activation=activation, iq_conf=iq_conf, oq_conf=oq_conf, enable_oq=enable_oq, **kwargs)
 
     def call(self, inputs, training=None):
@@ -52,6 +56,11 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         bw_out = self.oq.bits_(shape)
         # TODO: more realistic cost for lookup tables
         return ops.sum((2.0**bw_inp) * bw_out) * 0.01  # type: ignore
+
+    def get_config(self):
+        config = super().get_config()
+        config['allow_heterogeneous_table'] = self._allow_heterogeneous_table
+        return config
 
 
 class QPositiveUnaryFunctionLUT(QUnaryFunctionLUT):
