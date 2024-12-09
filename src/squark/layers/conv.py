@@ -181,8 +181,9 @@ class QConv1D(QBaseConv):
                 bias_shape = (1,) * (self.rank + 1) + (self.filters,)
             else:
                 bias_shape = (1, self.filters) + (1,) * self.rank
-            bias = ops.reshape(self.bias, bias_shape)
-            outputs += bias  # type: ignore
+            qbias = self.bq(self.bias, training=training)  # type: ignore
+            qbias = ops.reshape(qbias, bias_shape)
+            outputs += qbias  # type: ignore
         if self.activation is not None:
             return self.activation(outputs)
         return outputs
