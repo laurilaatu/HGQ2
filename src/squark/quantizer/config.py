@@ -168,8 +168,8 @@ float_datalane_default = FloatConfig(
     mr=MonoL1(1e-6),
     er=MonoL1(1e-6),
     e0r=None,
-    homogeneous_axis=(0,),
-    heterogeneous_axis=None,
+    homogeneous_axis=None,
+    heterogeneous_axis=(),
     bw_mapper=None,
     trainable=True,
 )
@@ -188,15 +188,15 @@ float_table_default['heterogeneous_axis'] = ()
 default_configs: dict[tuple[str, str], KIFConfig | KBIConfig | FloatConfig] = {
     ('kbi', 'weight'): kbi_weight_default,
     ('kbi', 'bias'): kbi_weight_default.copy(),
-    ('kbi', 'table'): kbi_weight_default.copy(),
+    ('kbi', 'table'): kbi_table_default,
     ('kbi', 'datalane'): kbi_datalane_default,
     ('kif', 'weight'): kif_weight_default,
     ('kif', 'bias'): kif_weight_default.copy(),
-    ('kif', 'table'): kif_weight_default.copy(),
+    ('kif', 'table'): kif_table_default,
     ('kif', 'datalane'): kif_datalane_default,
     ('float', 'weight'): float_weight_default,
     ('float', 'bias'): float_weight_default.copy(),
-    ('float', 'table'): float_weight_default.copy(),
+    ('float', 'table'): float_table_default,
     ('float', 'datalane'): float_datalane_default,
 }
 
