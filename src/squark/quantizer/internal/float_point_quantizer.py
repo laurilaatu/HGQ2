@@ -3,7 +3,7 @@ from keras import ops
 from keras.api.constraints import Constraint
 from keras.api.initializers import Constant, Initializer
 from keras.api.regularizers import Regularizer
-from quantizers.fixed_point.fixed_point_ops import round_conv
+from quantizers.fixed_point._fixed_point_ops import round_conv
 from quantizers.minifloat.float_point_ops import float_quantize
 
 from ...constraints import Min

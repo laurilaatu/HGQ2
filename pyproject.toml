@@ -37,7 +37,7 @@ write_to = "src/squark/_version.py"
 docs = ["sphinx", "sphinx-rtd-theme", "myst-parser", "pyparsing"]
 
 
-dependencies = ['keras>=3', 'quantizers']
+dependencies = ['keras>=3', 'quantizers>=1.1']
 
 test = [
   # "git+https://github.com/calad0i/hls4ml@HGQ-integration",

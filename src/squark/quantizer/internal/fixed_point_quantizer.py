@@ -5,7 +5,8 @@ from keras.api.initializers import Constant, Initializer
 from keras.api.regularizers import Regularizer
 from keras.src import backend
 from keras.src.backend.config import epsilon
-from quantizers.fixed_point.fixed_point_ops import get_fixed_quantizer, round_conv
+from quantizers.fixed_point._fixed_point_ops import _get_fixed_quantizer as get_fixed_quantizer
+from quantizers.fixed_point._fixed_point_ops import round_conv
 
 from ...constraints import MinMax
 from .base import TrainableQuantizerBase, numbers
