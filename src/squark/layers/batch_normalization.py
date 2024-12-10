@@ -162,8 +162,8 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
 
         shape = self._shape
 
-        qscale = self.kq(scale, training=True)
-        qoffset = self.bq(offset, training=True)
+        qscale = self.kq(scale, training=training)
+        qoffset = self.bq(offset, training=training)
 
         qscale = ops.reshape(qscale, shape)
         qoffset = ops.reshape(qoffset, shape)
