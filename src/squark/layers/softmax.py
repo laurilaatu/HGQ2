@@ -164,4 +164,4 @@ class QSoftmax(QLayerBaseSingleInput):
                 self.inv_table.ebops,
             )
         )
-        return round(ops.convert_to_numpy(ebops))  # type: ignore
+        return round(ops.convert_to_numpy(ebops).item())  # type: ignore

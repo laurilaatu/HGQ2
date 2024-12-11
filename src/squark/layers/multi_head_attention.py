@@ -380,7 +380,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             )
         )
 
-        return round(ops.convert_to_numpy(ebops))  # type: ignore
+        return round(ops.convert_to_numpy(ebops).item())  # type: ignore
 
     def call(
         self,
