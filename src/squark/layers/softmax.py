@@ -51,6 +51,10 @@ class QSoftmax(QLayerBaseSingleInput):
             inv_iq_conf.config['homogeneous_axis'] = None
             exp_iq_conf.config['heterogeneous_axis'] = ()
             exp_iq_conf.config['homogeneous_axis'] = None
+        if 'k0' in inv_iq_conf.config:
+            inv_iq_conf.config['k0'] = 0
+        if 'k0' in exp_iq_conf.config:
+            exp_iq_conf.config['k0'] = 0
 
         self.inv_table = QUnaryFunctionLUT(
             _inv,
