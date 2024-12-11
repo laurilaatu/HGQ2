@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from math import prod
+from warnings import warn
 
 from keras import ops
 from keras.src import backend
@@ -46,15 +47,22 @@ class QSoftmax(QLayerBaseSingleInput):
 
         inv_iq_conf = inv_iq_conf or QuantizerConfig('default', 'datalane')
         exp_iq_conf = exp_iq_conf or QuantizerConfig('default', 'datalane')
+        exp_oq_conf = exp_oq_conf or QuantizerConfig('default', 'table')
+        inv_oq_conf = inv_oq_conf or QuantizerConfig('default', 'table')
         if not self._allow_heterogeneous_table:
             inv_iq_conf.config['heterogeneous_axis'] = ()
             inv_iq_conf.config['homogeneous_axis'] = None
             exp_iq_conf.config['heterogeneous_axis'] = ()
             exp_iq_conf.config['homogeneous_axis'] = None
-        if 'k0' in inv_iq_conf.config:
-            inv_iq_conf.config['k0'] = 0
-        if 'k0' in exp_iq_conf.config:
-            exp_iq_conf.config['k0'] = 0
+
+        if 'k0' in inv_oq_conf.config:
+            inv_oq_conf.config['k0'] = 0
+        if 'k0' in exp_oq_conf.config:
+            exp_oq_conf.config['k0'] = 0
+
+        if inv_oq_conf.config.get('overflow_mode', None) == 'WRAP':
+            warn('WRAP overflow mode on inverse table will likely cause hugh table size. Set to SAT instead.')
+            inv_oq_conf.config['overflow_mode'] = 'SAT'  # type: ignore
 
         self.inv_table = QUnaryFunctionLUT(
             _inv,
