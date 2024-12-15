@@ -413,3 +413,355 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         if return_attention_scores:
             return self.oq(ret[0], training=training), ret[1]
         return self.oq(ret, training=training)
+
+
+class QMultiHeadSelfAttention(QMultiHeadAttention, QLayerBase):
+    def build(  # type: ignore
+        self,
+        query_shape,
+    ):
+        """Builds layers and variables.
+
+        Args:
+            query_shape: Shape of the `query` tensor.
+            value_shape: Shape of the `value` tensor.
+            key: Optional shape of the `key` tensor.
+        """
+
+        # Copied and modified from keras MultiHeadAttention, substituted
+        # EinsumDense with QEinsumDense and added sequence length (shape) to its
+        # output shape when initializing, if known.
+        qkv_shape = query_shape
+
+        qkv_rank = len(qkv_shape)
+
+        einsum_equation, bias_axes, output_rank = _build_proj_equation(
+            qkv_rank - 1,
+            bound_dims=1,
+            output_dims=2,
+        )
+
+        _in, idx_out = einsum_equation.split('->')
+        idx_in, idx_w = _in.split(',')
+        einsum_equation = f'{idx_in},{idx_w}X->{idx_out}X'
+        bias_axes = bias_axes + 'X'
+
+        out_shape = _get_output_shape(
+            output_rank - 1,
+            [self._num_heads, self._key_dim],
+            qkv_shape,
+        ) + [3]
+        self._qkv_dense = QEinsumDense(
+            einsum_equation,
+            output_shape=out_shape,
+            bias_axes=bias_axes if self._use_bias else None,
+            name='qkv',
+            enable_iq=self.enable_iq,
+            enable_oq=True,
+            **self._get_common_kwargs_for_sublayer(),
+        )
+        self._qkv_dense.build(qkv_shape)
+
+        # Builds the attention computations for multi-head dot product
+        # attention.  These computations could be wrapped into the keras
+        # attention layer once it supports multi-head einsum computations.
+        self._build_attention(output_rank, (qkv_shape, qkv_shape, qkv_shape))
+        self._output_dense = self._make_output_dense(
+            query_shape,
+            self._get_common_kwargs_for_sublayer(),
+            'attention_output',
+        )
+        output_dense_input_shape = list(
+            self._qkv_dense.compute_output_shape(query_shape)[:-1],
+        )
+        output_dense_input_shape[-1] = self._value_dim
+        self._output_dense.build(tuple(output_dense_input_shape))
+
+        if self.enable_ebops:
+            self._beta = self.add_weight(
+                name='beta',
+                shape=(),
+                initializer=self._beta0,
+                trainable=False,
+            )
+            self._ebops = self.add_weight(
+                name='ebops',
+                shape=(),
+                initializer=Constant(0.0),
+                trainable=False,
+                dtype='uint32',
+            )
+        else:
+            self._beta = None
+            self._ebops = None
+
+        self._dot_product_ebops_equation = self._dot_product_equation.split('->', 1)[0] + '->'
+        self._combine_ebops_equation = self._combine_equation.split('->', 1)[0] + '->'
+        self.built = True
+
+    def _compute_ebops(self, query_shape, value_shape, key_shape=None):
+        Q_shape = (1,) + self._query_dense.full_output_shape[1:]
+        K_shape = (1,) + self._key_dense.full_output_shape[1:]
+        V_shape = (1,) + self._value_dense.full_output_shape[1:]
+        attn_score_shape = (1, self._num_heads, *query_shape[1:-1], *value_shape[1:-1])
+
+        if self.parallelization_factor > 0:
+            assert len(query_shape) == 3, f'EBOPs computation is only supported for 3D tensors, but got {query_shape}.'
+            b, *n, h, dk = Q_shape
+            b, *n, h, dv = K_shape
+            b, *n, h, dv = V_shape
+
+            Q_shape = b, (1,) * len(n), h, dk
+            K_shape = b, (1,) * len(n), h, dv
+            V_shape = b, (1,) * len(n), h, dv
+            attn_score_shape = b, self._num_heads, *(1,) * len(n) * 2
+
+        bw_qkv = self._qkv_dense.oq.bits_(Q_shape)
+        bw_q, bw_k, bw_v = bw_qkv[..., 0], bw_qkv[..., 1], bw_qkv[..., 2]  # type: ignore
+        bw_attn = self._softmax.oq.bits_(attn_score_shape)
+
+        ebops_qk = ops.einsum(self._dot_product_ebops_equation, bw_q, bw_k)
+        ebops_av = ops.einsum(self._combine_ebops_equation, bw_attn, bw_v)
+        ebops = ebops_qk + ebops_av  # type: ignore
+        if self.parallelization_factor > 0:
+            return ebops * self.parallelization_factor
+        return ebops
+
+    def call(  # type: ignore
+        self,
+        query,
+        query_mask=None,
+        attention_mask=None,
+        return_attention_scores=False,
+        training=None,
+    ):
+        attention_mask = self._compute_attention_mask(
+            query,
+            query,
+            query_mask=query_mask,
+            attention_mask=attention_mask,
+        )
+
+        qkv = self._qkv_dense(query)
+        query, key, value = qkv[..., 0], qkv[..., 1], qkv[..., 2]
+
+        attention_output, attention_scores = self._compute_attention(query, key, value, attention_mask, training)
+
+        attention_output = self._output_dense(attention_output)
+
+        if self.enable_oq:
+            attention_output = self.oq(attention_output, training=training)
+
+        if return_attention_scores:
+            return attention_output, attention_scores
+        return attention_output
+
+    def compute_output_spec(  # type: ignore
+        self,
+        query,
+        query_mask=None,
+        attention_mask=None,
+        return_attention_scores=False,
+        training=None,
+    ):
+        return super().compute_output_spec(
+            query,
+            query,
+            query_mask=query_mask,
+            attention_mask=attention_mask,
+            return_attention_scores=return_attention_scores,
+            training=training,
+        )
+
+
+class QMultiHeadCrossAttention(QMultiHeadAttention, QLayerBase):
+    def build(  # type: ignore
+        self,
+        query_shape,
+        value_shape,
+    ):
+        """Builds layers and variables.
+
+        Args:
+            query_shape: Shape of the `query` tensor.
+            value_shape: Shape of the `value` tensor.
+        """
+
+        # Copied and modified from keras MultiHeadAttention, substituted
+        # EinsumDense with QEinsumDense and added sequence length (shape) to its
+        # output shape when initializing, if known.
+        kv_shape = value_shape
+
+        query_rank = len(query_shape)
+        kv_rank = len(kv_shape)
+
+        einsum_equation, bias_axes, output_rank = _build_proj_equation(
+            query_rank - 1,
+            bound_dims=1,
+            output_dims=2,
+        )
+
+        self._query_dense = QEinsumDense(
+            einsum_equation,
+            output_shape=_get_output_shape(
+                output_rank - 1,
+                [self._num_heads, self._key_dim],
+                query_shape,
+            ),
+            bias_axes=bias_axes if self._use_bias else None,
+            name='query',
+            enable_iq=self.enable_iq,
+            enable_oq=True,
+            **self._get_common_kwargs_for_sublayer(),
+        )
+        self._query_dense.build(query_shape)
+
+        einsum_equation, bias_axes, output_rank = _build_proj_equation(
+            kv_rank - 1,
+            bound_dims=1,
+            output_dims=2,
+        )
+
+        _in, idx_out = einsum_equation.split('->')
+        idx_in, idx_w = _in.split(',')
+        einsum_equation = f'{idx_in},{idx_w}X->{idx_out}X'
+        bias_axes = bias_axes + 'X'
+
+        out_shape = _get_output_shape(
+            output_rank - 1,
+            [self._num_heads, self._key_dim],
+            kv_shape,
+        ) + [2]
+        self._kv_dense = QEinsumDense(
+            einsum_equation,
+            output_shape=out_shape,
+            bias_axes=bias_axes if self._use_bias else None,
+            name='kv',
+            enable_iq=self.enable_iq,
+            enable_oq=True,
+            **self._get_common_kwargs_for_sublayer(),
+        )
+        self._kv_dense.build(kv_shape)
+
+        # Builds the attention computations for multi-head dot product
+        # attention.  These computations could be wrapped into the keras
+        # attention layer once it supports multi-head einsum computations.
+        self._build_attention(output_rank, (query_shape, kv_shape, kv_shape))
+        self._output_dense = self._make_output_dense(
+            query_shape,
+            self._get_common_kwargs_for_sublayer(),
+            'attention_output',
+        )
+        output_dense_input_shape = list(
+            self._query_dense.compute_output_shape(query_shape),
+        )
+        output_dense_input_shape[-1] = self._value_dim
+        self._output_dense.build(tuple(output_dense_input_shape))
+
+        if self.enable_ebops:
+            self._beta = self.add_weight(
+                name='beta',
+                shape=(),
+                initializer=self._beta0,
+                trainable=False,
+            )
+            self._ebops = self.add_weight(
+                name='ebops',
+                shape=(),
+                initializer=Constant(0.0),
+                trainable=False,
+                dtype='uint32',
+            )
+        else:
+            self._beta = None
+            self._ebops = None
+
+        self._dot_product_ebops_equation = self._dot_product_equation.split('->', 1)[0] + '->'
+        self._combine_ebops_equation = self._combine_equation.split('->', 1)[0] + '->'
+        self.built = True
+
+    def _compute_ebops(self, query_shape, value_shape, key_shape=None):
+        Q_shape = (1,) + self._query_dense.full_output_shape[1:]
+        K_shape = (1,) + self._key_dense.full_output_shape[1:]
+        V_shape = (1,) + self._value_dense.full_output_shape[1:]
+        attn_score_shape = (1, self._num_heads, *query_shape[1:-1], *value_shape[1:-1])
+
+        if self.parallelization_factor > 0:
+            assert len(query_shape) == 3, f'EBOPs computation is only supported for 3D tensors, but got {query_shape}.'
+            b, *n, h, dk = Q_shape
+            b, *n, h, dv = K_shape
+            b, *n, h, dv = V_shape
+
+            Q_shape = b, (1,) * len(n), h, dk
+            K_shape = b, (1,) * len(n), h, dv
+            V_shape = b, (1,) * len(n), h, dv
+            attn_score_shape = b, self._num_heads, *(1,) * len(n) * 2
+
+        bw_q = self._query_dense.oq.bits_(Q_shape)
+        bw_kv = self._kv_dense.oq.bits_(K_shape)
+        bw_k, bw_v = bw_kv[..., 0], bw_kv[..., 1]  # type: ignore
+        bw_attn = self._softmax.oq.bits_(attn_score_shape)
+
+        ebops_qk = ops.einsum(self._dot_product_ebops_equation, bw_q, bw_k)
+        ebops_av = ops.einsum(self._combine_ebops_equation, bw_attn, bw_v)
+        ebops = ebops_qk + ebops_av  # type: ignore
+        if self.parallelization_factor > 0:
+            return ebops * self.parallelization_factor
+        return ebops
+
+    def call(  # type: ignore
+        self,
+        query,
+        value,
+        query_mask=None,
+        value_mask=None,
+        attention_mask=None,
+        return_attention_scores=False,
+        training=None,
+        use_causal_mask=False,
+    ):
+        attention_mask = self._compute_attention_mask(
+            query,
+            value,
+            query_mask=query_mask,
+            value_mask=value_mask,
+            attention_mask=attention_mask,
+            use_causal_mask=use_causal_mask,
+        )
+
+        query = self._query_dense(query)
+        kv = self._kv_dense(value)
+        key, value = kv[..., 0], kv[..., 1]
+
+        attention_output, attention_scores = self._compute_attention(query, key, value, attention_mask, training)
+
+        attention_output = self._output_dense(attention_output)
+
+        if self.enable_oq:
+            attention_output = self.oq(attention_output, training=training)
+
+        if return_attention_scores:
+            return attention_output, attention_scores
+        return attention_output
+
+    def compute_output_spec(  # type: ignore
+        self,
+        query,
+        value,
+        query_mask=None,
+        value_mask=None,
+        attention_mask=None,
+        return_attention_scores=False,
+        training=None,
+        use_causal_mask=False,
+    ):
+        return super().compute_output_spec(
+            query,
+            value,
+            query_mask=query_mask,
+            value_mask=value_mask,
+            attention_mask=attention_mask,
+            return_attention_scores=return_attention_scores,
+            training=training,
+            use_causal_mask=use_causal_mask,
+        )
