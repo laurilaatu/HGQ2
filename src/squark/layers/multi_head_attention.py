@@ -1,5 +1,6 @@
 import math
 from collections.abc import Sized
+from typing import Literal
 
 from keras import ops
 from keras.api.initializers import Constant
@@ -38,6 +39,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         kernel_constraint=None,
         bias_constraint=None,
         seed=None,
+        fuse: Literal['none', 'qkv', 'kv'] = 'none',
         qkvo_iq_conf: QuantizerConfig | None = None,
         qkvo_kq_conf: QuantizerConfig | None = None,
         qkvo_bq_conf: QuantizerConfig | None = None,
@@ -68,6 +70,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         self._softmax_allow_heterogeneous_table = kwargs.pop('softmax_allow_heterogeneous_table')
         self.parallelization_factor = kwargs.pop('parallelization_factor')
         self._stable_softmax = kwargs.pop('stable_softmax')
+        self._fuse = kwargs.pop('fuse', 'none').lower()
 
         super().__init__(**kwargs)
 
@@ -120,8 +123,9 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             )
 
         query_rank = len(query_shape)
-        value_rank = len(value_shape)
         key_rank = len(key_shape)
+        value_rank = len(value_shape)
+
         einsum_equation, bias_axes, output_rank = _build_proj_equation(
             query_rank - 1,
             bound_dims=1,
@@ -136,11 +140,11 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             ),
             bias_axes=bias_axes if self._use_bias else None,
             name='query',
-            enable_iq=self.enable_iq,
+            enable_iq=self.enable_iq and not self._fuse == 'qkv',
             enable_oq=True,
             **self._get_common_kwargs_for_sublayer(),
         )
-        self._query_dense.build(query_shape)
+
         einsum_equation, bias_axes, output_rank = _build_proj_equation(
             key_rank - 1,
             bound_dims=1,
@@ -155,11 +159,11 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             ),
             bias_axes=bias_axes if self._use_bias else None,
             name='key',
-            enable_iq=self.enable_iq,
+            enable_iq=self.enable_iq and self._fuse not in ('qkv', 'kv'),
             enable_oq=True,
             **self._get_common_kwargs_for_sublayer(),
         )
-        self._key_dense.build(key_shape)
+
         einsum_equation, bias_axes, output_rank = _build_proj_equation(
             value_rank - 1,
             bound_dims=1,
@@ -179,6 +183,16 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             **self._get_common_kwargs_for_sublayer(),
         )
         self._value_dense.build(value_shape)
+
+        if self._fuse == 'qkv':
+            self._query_dense._iq = self._value_dense._iq
+        if self._fuse in ('qkv', 'kv'):
+            self._key_dense._iq = self._value_dense._iq
+
+        self._query_dense.build(query_shape)
+        self._query_dense._enable_iq = True
+        self._key_dense.build(key_shape)
+        self._key_dense._enable_iq = True
 
         # Builds the attention computations for multi-head dot product
         # attention.  These computations could be wrapped into the keras
