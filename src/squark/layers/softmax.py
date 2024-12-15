@@ -6,6 +6,7 @@ from keras import ops
 from keras.src import backend
 
 from ..quantizer import QuantizerConfig
+from ..utils.misc import warn_no_synth
 from .activation import QUnaryFunctionLUT
 from .core import QLayerBaseSingleInput
 
@@ -61,7 +62,7 @@ class QSoftmax(QLayerBaseSingleInput):
             exp_oq_conf.config['k0'] = 0
 
         if inv_oq_conf.config.get('overflow_mode', None) == 'WRAP':
-            warn('WRAP overflow mode on inverse table will likely cause hugh table size. Set to SAT instead.')
+            warn('WRAP overflow mode on inverse table will likely cause hugh table size. Automatically changing to SAT.')
             inv_oq_conf.config['overflow_mode'] = 'SAT'  # type: ignore
 
         self.inv_table = QUnaryFunctionLUT(
@@ -89,6 +90,10 @@ class QSoftmax(QLayerBaseSingleInput):
 
     def build(self, input_shape):
         self.exp_table.build(input_shape)
+        axis = sorted(i if i >= 0 else i + len(input_shape) for i in self.axis)
+        self.axis = tuple(axis)
+        cond = not all(i1 - i0 > 1 for i0, i1 in zip(axis[:-1], axis[1:]))
+        warn_no_synth(cond, f'Softmax axis is not contiguous, hls4ml will not be able to synthesize this layer: {self.axis}')
 
         inv_shape = list(input_shape)
         for i in self.axis:

@@ -4,6 +4,7 @@ from math import log2, prod
 from keras import ops
 
 from ...quantizer.config import QuantizerConfig
+from ...utils.misc import warn_no_synth
 from ..core.base import QLayerBaseSingleInput
 
 
@@ -12,14 +13,22 @@ class QSum(QLayerBaseSingleInput):
         self,
         iq_conf: QuantizerConfig | None = None,
         axis: int | Sequence[int] = -1,
-        pow2_scale: float = 1.0,
+        scale: float = 1.0,
         keepdims: bool = False,
         **kwargs,
     ):
         super().__init__(iq_conf=iq_conf, **kwargs)
         self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
-        self._scale = float(2.0 ** log2(pow2_scale))
+        assert log2(scale).is_integer(), 'Scale must be a power of 2.'
+        self._scale = scale
         self._keepdims = keepdims
+
+    def build(self, input_shape):
+        super().build(input_shape)
+        axis = sorted(i if i >= 0 else i + len(input_shape) for i in self.axis)
+        self.axis = tuple(axis)
+        cond = all(i1 - i0 > 1 for i0, i1 in zip(axis[:-1], axis[1:]))
+        warn_no_synth(cond, 'Softmax axis is not contiguous, hls4ml will not be able to synthesize this layer.')
 
     @property
     def scale(self):
