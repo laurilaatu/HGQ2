@@ -9,8 +9,8 @@ class QDense(layers.QDense):
         units,
         activation=None,
         use_bias=True,
-        kernel_initializer="glorot_uniform",
-        bias_initializer="zeros",
+        kernel_initializer='glorot_uniform',
+        bias_initializer='zeros',
         kernel_regularizer=None,
         bias_regularizer=None,
         activity_regularizer=None,
@@ -21,9 +21,7 @@ class QDense(layers.QDense):
         bias_quantizer: None | QuantizerConfig | str = None,
         output_quantizer: None | QuantizerConfig | str = None,
         **kwargs,
-    ):
-        ...
-
+    ): ...
 
 class QEinsumDense(layers.QEinsumDense):
     def __init__(
@@ -32,8 +30,8 @@ class QEinsumDense(layers.QEinsumDense):
         output_shape,
         activation=None,
         bias_axes=None,
-        kernel_initializer="glorot_uniform",
-        bias_initializer="zeros",
+        kernel_initializer='glorot_uniform',
+        bias_initializer='zeros',
         kernel_regularizer=None,
         bias_regularizer=None,
         kernel_constraint=None,
@@ -43,9 +41,7 @@ class QEinsumDense(layers.QEinsumDense):
         bias_quantizer: None | QuantizerConfig | str = None,
         output_quantizer: None | QuantizerConfig | str = None,
         **kwargs,
-    ):
-        ...
-
+    ): ...
 
 class QConv1D(layers.QConv1D):
     def __init__(
@@ -53,14 +49,14 @@ class QConv1D(layers.QConv1D):
         filters,
         kernel_size,
         strides=1,
-        padding="valid",
+        padding='valid',
         data_format=None,
         dilation_rate=1,
         groups=1,
         activation=None,
         use_bias=True,
-        kernel_initializer="glorot_uniform",
-        bias_initializer="zeros",
+        kernel_initializer='glorot_uniform',
+        bias_initializer='zeros',
         kernel_regularizer=None,
         bias_regularizer=None,
         activity_regularizer=None,
@@ -71,9 +67,7 @@ class QConv1D(layers.QConv1D):
         bias_quantizer: None | QuantizerConfig | str = None,
         output_quantizer: None | QuantizerConfig | str = None,
         **kwargs,
-    ):
-        ...
-
+    ): ...
 
 class QConv2D(layers.QConv2D):
     def __init__(
@@ -81,14 +75,14 @@ class QConv2D(layers.QConv2D):
         filters,
         kernel_size,
         strides=(1, 1),
-        padding="valid",
+        padding='valid',
         data_format=None,
         dilation_rate=(1, 1),
         groups=1,
         activation=None,
         use_bias=True,
-        kernel_initializer="glorot_uniform",
-        bias_initializer="zeros",
+        kernel_initializer='glorot_uniform',
+        bias_initializer='zeros',
         kernel_regularizer=None,
         bias_regularizer=None,
         activity_regularizer=None,
@@ -99,9 +93,7 @@ class QConv2D(layers.QConv2D):
         bias_quantizer: None | QuantizerConfig | str = None,
         output_quantizer: None | QuantizerConfig | str = None,
         **kwargs,
-    ):
-        ...
-
+    ): ...
 
 class QConv3D(layers.QConv3D):
     def __init__(
@@ -109,14 +101,14 @@ class QConv3D(layers.QConv3D):
         filters,
         kernel_size,
         strides=(1, 1, 1),
-        padding="valid",
+        padding='valid',
         data_format=None,
         dilation_rate=(1, 1, 1),
         groups=1,
         activation=None,
         use_bias=True,
-        kernel_initializer="glorot_uniform",
-        bias_initializer="zeros",
+        kernel_initializer='glorot_uniform',
+        bias_initializer='zeros',
         kernel_regularizer=None,
         bias_regularizer=None,
         activity_regularizer=None,
@@ -127,9 +119,7 @@ class QConv3D(layers.QConv3D):
         bias_quantizer: None | QuantizerConfig | str = None,
         output_quantizer: None | QuantizerConfig | str = None,
         **kwargs,
-    ):
-        ...
-
+    ): ...
 
 class QSoftmax(layers.QSoftmax):
     def __init__(
@@ -143,10 +133,8 @@ class QSoftmax(layers.QSoftmax):
         inv_output_quantizer: None | QuantizerConfig | str = None,
         allow_heterogeneous_table: bool = False,
         input_scaler: float = 1.0,
-        **kwargs
-    ):
-        ...
-
+        **kwargs,
+    ): ...
 
 class QActivation(layers.QUnaryFunctionLUT):
     def __init__(
@@ -155,50 +143,38 @@ class QActivation(layers.QUnaryFunctionLUT):
         input_quantizer: None | QuantizerConfig | str = None,
         output_quantizer: None | QuantizerConfig | str = None,
         allow_heterogeneous_table: bool = False,
-        **kwargs
-    ):
-        ...
-
+        **kwargs,
+    ): ...
 
 class QMeanPow2(layers.QMeanPow2):
     pass
 
-
 class QSum(layers.QSum):
     pass
-
 
 class QAdd(layers.QAdd):
     pass
 
-
 class QAveragePow2(layers.QAveragePow2):
     pass
-
 
 class QDot(layers.QDot):
     pass
 
-
 class QEinsum(layers.QEinsum):
     pass
-
 
 class QMatmul(layers.QMatmul):
     pass
 
-
 class QMaximum(layers.QMaximum):
     pass
-
 
 class QMinimum(layers.QMinimum):
     pass
 
-
 class QMultiply(layers.QMultiply):
     pass
-
 
 class QSubtract(layers.QSubtract):
     pass
