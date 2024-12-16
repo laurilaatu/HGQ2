@@ -332,16 +332,20 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         config = super().get_config()
         config.update(
             {
-                'qkv_iq_conf': self._qkvo_iq_conf,
-                'qkv_kq_conf': self._qkvo_kq_conf,
-                'qkv_bq_conf': self._qkvo_bq_conf,
-                'qkv_oq_conf': self._qkvo_oq_conf,
+                'qkvo_iq_conf': self._qkvo_iq_conf,
+                'qkvo_kq_conf': self._qkvo_kq_conf,
+                'qkvo_bq_conf': self._qkvo_bq_conf,
+                'qkvo_oq_conf': self._qkvo_oq_conf,
                 'softmax_iq_conf': self._softmax_iq_conf,
                 'softmax_exp_iq_conf': self._softmax_exp_iq_conf,
                 'softmax_exp_oq_conf': self._softmax_exp_oq_conf,
                 'softmax_inv_iq_conf': self._softmax_inv_iq_conf,
                 'softmax_inv_oq_conf': self._softmax_inv_oq_conf,
+                'softmax_oq_conf': self._softmax_oq_conf,
+                'softmax_allow_heterogeneous_table': self._softmax_allow_heterogeneous_table,
+                'parallelization_factor': self.parallelization_factor,
                 'stable_softmax': self._stable_softmax,
+                'fuse': self._fuse,
             }
         )
         return config
