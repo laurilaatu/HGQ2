@@ -413,21 +413,84 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         training=None,
         use_causal_mask=False,
     ):
-        ret = super().call(
+        # Adapted from _compute_attention in keras 3.5.0
+
+        if key is None:
+            key = value
+
+        attention_mask = self._compute_attention_mask(
             query,
             value,
-            key=key,
             query_mask=query_mask,
             value_mask=value_mask,
             key_mask=key_mask,
             attention_mask=attention_mask,
-            return_attention_scores=return_attention_scores,
-            training=training,
             use_causal_mask=use_causal_mask,
         )
-        if not self.enable_oq:
-            return ret
+
+        #   N = `num_attention_heads`
+        #   H = `size_per_head`
+        # `query` = [B, T, N ,H]
+        query = self._query_dense(query)
+
+        # `key` = [B, S, N, H]
+        key = self._key_dense(key)
+
+        # `value` = [B, S, N, H]
+        value = self._value_dense(value)
+
+        attention_output, attention_scores = self._compute_attention(query, key, value, attention_mask, training)
+        attention_output = self._output_dense(attention_output)
+
+        if self.enable_oq:
+            attention_output = self.oq(attention_output, training=training)
 
         if return_attention_scores:
-            return self.oq(ret[0], training=training), ret[1]
-        return self.oq(ret, training=training)
+            return attention_output, attention_scores
+        return attention_output
+
+    def _compute_attention(self, query, key, value, attention_mask=None, training=None):
+        # Original _compute_attention in keras 3.5.0
+        # Copied for disable to flash-attn that breaks quantization.
+        """Applies Dot-product attention with query, key, value tensors.
+
+        This function defines the computation inside `call` with projected
+        multi-head Q, K, V inputs. Users can override this function for
+        customized attention implementation.
+
+        Args:
+            query: Projected query tensor of shape `(B, T, N, key_dim)`.
+            key: Projected key tensor of shape `(B, S, N, key_dim)`.
+            value: Projected value tensor of shape `(B, S, N, value_dim)`.
+            attention_mask: a boolean mask of shape `(B, T, S)`, that prevents
+                attention to certain positions. It is generally not needed if
+                the `query` and `value` (and/or `key`) are masked.
+            training: Python boolean indicating whether the layer should behave
+                in training mode (adding dropout) or in inference mode (doing
+                nothing).
+
+        Returns:
+          attention_output: Multi-headed outputs of attention computation.
+          attention_scores: Multi-headed attention weights.
+        """
+        # Note: Applying scalar multiply at the smaller end of einsum improves
+        # XLA performance, but may introduce slight numeric differences in
+        # the Transformer attention head.
+        query = ops.multiply(query, ops.cast(self._inverse_sqrt_key_dim, query.dtype))
+
+        # Take the dot product between "query" and "key" to get the raw
+        # attention scores.
+        attention_scores = ops.einsum(self._dot_product_equation, key, query)
+
+        attention_scores = self._masked_softmax(attention_scores, attention_mask)
+
+        # This is actually dropping out entire tokens to attend to, which might
+        # seem a bit unusual, but is taken from the original Transformer paper.
+        if self.dropout:
+            final_attn_scores = self._dropout_layer(attention_scores, training=training)
+        else:
+            final_attn_scores = attention_scores
+
+        # `context_layer` = [B, T, N, H]
+        attention_output = ops.einsum(self._combine_equation, final_attn_scores, value)
+        return attention_output, attention_scores
