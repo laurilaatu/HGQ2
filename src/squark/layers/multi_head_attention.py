@@ -97,10 +97,14 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
     ):
         """Builds layers and variables.
 
-        Args:
-            query_shape: Shape of the `query` tensor.
-            value_shape: Shape of the `value` tensor.
-            key: Optional shape of the `key` tensor.
+        Parameters
+        ----------
+        query_shape : tuple
+            Shape of the `query` tensor.
+        value_shape : tuple
+            Shape of the `value` tensor.
+        key_shape : tuple, optional
+            Shape of the `key` tensor.
         """
 
         # Copied and modified from keras MultiHeadAttention, substituted
@@ -234,18 +238,26 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
     def _make_output_dense(self, query_shape, common_kwargs, name=None):
         """Builds the output projection matrix.
 
-        Args:
-            free_dims: Number of free dimensions for einsum equation building.
-            common_kwargs: Common keyword arguments for einsum layer.
-            name: Name for the projection layer.
+        Parameters
+        ----------
+        query_shape : tuple
+            Shape of the query tensor.
+        common_kwargs : dict
+            Common keyword arguments for the einsum layer.
+        name : str, optional
+            Name for the projection layer.
 
-        Returns:
-            Projection layer.
+        Returns
+        -------
+        QEinsumDense
+
+        Notes
+        -----
+        This method is copied and modified from Keras MultiHeadAttention. It substitutes
+        EinsumDense with QEinsumDense and adds sequence length (shape) to its output shape
+        when initializing, if known.
         """
 
-        # Copied and modified from keras MultiHeadAttention, substituted
-        # EinsumDense with QEinsumDense and added sequence length (shape) to its
-        # output shape when initializing, if known.
         query_rank = len(query_shape)
         if self._output_shape:
             if not isinstance(self._output_shape, Sized):
@@ -276,8 +288,10 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         customize attention computation to replace the default dot-product
         attention.
 
-        Args:
-            rank: the rank of query, key, value tensors.
+        Parameters
+        ----------
+        rank : int
+            The rank of query, key, value tensors.
         """
 
         # Copied and modified from keras MultiHeadAttention, substituted Softmax with QSoftmax.
@@ -458,20 +472,28 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         multi-head Q, K, V inputs. Users can override this function for
         customized attention implementation.
 
-        Args:
-            query: Projected query tensor of shape `(B, T, N, key_dim)`.
-            key: Projected key tensor of shape `(B, S, N, key_dim)`.
-            value: Projected value tensor of shape `(B, S, N, value_dim)`.
-            attention_mask: a boolean mask of shape `(B, T, S)`, that prevents
-                attention to certain positions. It is generally not needed if
-                the `query` and `value` (and/or `key`) are masked.
-            training: Python boolean indicating whether the layer should behave
-                in training mode (adding dropout) or in inference mode (doing
-                nothing).
+        Parameters
+        ----------
+        query : tensor
+            Projected query tensor of shape `(B, T, N, key_dim)`.
+        key : tensor
+            Projected key tensor of shape `(B, S, N, key_dim)`.
+        value : tensor
+            Projected value tensor of shape `(B, S, N, value_dim)`.
+        attention_mask : tensor, optional
+            A boolean mask of shape `(B, T, S)` that prevents attention to
+            certain positions. It is generally not needed if the `query` and
+            `value` (and/or `key`) are masked.
+        training : bool, optional
+            Python boolean indicating whether the layer should behave in
+            training mode (adding dropout) or in inference mode (doing nothing).
 
-        Returns:
-          attention_output: Multi-headed outputs of attention computation.
-          attention_scores: Multi-headed attention weights.
+        Returns
+        -------
+        attention_output : tensor
+            Multi-headed outputs of attention computation.
+        attention_scores : tensor
+            Multi-headed attention weights.
         """
         # Note: Applying scalar multiply at the smaller end of einsum improves
         # XLA performance, but may introduce slight numeric differences in
