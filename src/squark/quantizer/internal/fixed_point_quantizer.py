@@ -267,8 +267,6 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
         return minimal_i_given_xb(xr, self.b, self.symmetric)
 
     def validate_config(self):
-        assert self.overflow_mode in ('WRAP', 'SAT', 'SYM', 'SAT_SYM')
-        assert self.round_mode in ('RND', 'TRN', 'RND_CONV', 'S_RND', 'S_RND_CONV')
         assert self.b_constraint is None or isinstance(self.b_constraint, Constraint)
         assert self.i_constraint is None or isinstance(self.i_constraint, Constraint)
         assert self.b_regularizer is None or isinstance(self.b_regularizer, Regularizer)
@@ -389,8 +387,6 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
         return minimal_i_given_xf(xr, self.f, self.symmetric)
 
     def validate_config(self):
-        assert self.overflow_mode in ('WRAP', 'SAT', 'SYM', 'SAT_SYM')
-        assert self.round_mode in ('TRN', 'RND', 'RND_CONV', 'S_RND', 'S_RND_CONV')
         assert self.f_constraint is None or isinstance(self.f_constraint, Constraint)
         assert self.i_constraint is None or isinstance(self.i_constraint, Constraint)
         assert self.f_regularizer is None or isinstance(self.f_regularizer, Regularizer)
