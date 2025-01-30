@@ -79,10 +79,11 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
         shape = [1] * len(input_shape)
         shape[self.axis] = input_shape[self.axis]
         self._shape = tuple(shape)
-        self.bn_beta.name = 'bn_beta'
-        self.bn_beta.path = self.bn_beta.path.replace('/beta', '/bn_beta')
-        self.bn_gamma.name = 'bn_gamma'
-        self.bn_gamma.path = self.bn_gamma.path.replace('/gamma', '/bn_gamma')
+
+        self.bn_beta._name = 'bn_beta'
+        self.bn_beta._path = self.bn_beta._path.replace('/beta', '/bn_beta')
+        self.bn_gamma._name = 'bn_gamma'
+        self.bn_gamma._path = self.bn_gamma._path.replace('/gamma', '/bn_gamma')
 
     def _scaler_and_offset(self):
         mean = ops.cast(self.moving_mean, self.dtype)
