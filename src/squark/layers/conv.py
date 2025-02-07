@@ -43,7 +43,7 @@ class QBaseConv(QLayerBaseSingleInput, BaseConv):
         self.parallelization_factor = parallelization_factor
 
         dilation_is_1 = dilation_rate == 1 if isinstance(dilation_rate, int) else all(d == 1 for d in dilation_rate)  # type: ignore
-        warn_no_synth(dilation_is_1, 'Dilation rate is not supported by hls4ml.')
+        warn_no_synth(not dilation_is_1, 'Dilation rate is not supported by hls4ml.')
 
     @property
     def kq(self):
