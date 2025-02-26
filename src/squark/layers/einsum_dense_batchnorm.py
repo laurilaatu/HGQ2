@@ -24,7 +24,7 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
         kq_conf: None | QuantizerConfig = None,
         iq_conf: None | QuantizerConfig = None,
         bq_conf: None | QuantizerConfig = None,
-        normalize_axes=None,
+        normalize_axes: str | None = None,
         momentum=0.99,
         epsilon=1e-3,
         center=True,
