@@ -63,19 +63,17 @@ class QBaseConv(QLayerBaseSingleInput, BaseConv):
     def call(self, inputs, training=None):
         if self.enable_iq:
             inputs = self.iq(inputs, training=training)
-        qkernel = self.kq(self._kernel, training=training)
         outputs = self.convolution_op(
             inputs,
-            qkernel,
+            self.qkernel,
         )
         if self.use_bias:
             if self.data_format == 'channels_last':
                 bias_shape = (1,) * (self.rank + 1) + (self.filters,)
             else:
                 bias_shape = (1, self.filters) + (1,) * self.rank
-            qbias = self.bq(self.bias, training=training)  # type: ignore
-            bias = ops.reshape(qbias, bias_shape)
-            outputs += bias  # type: ignore
+            qbias = ops.reshape(self.qbias, bias_shape)
+            outputs += qbias  # type: ignore
 
         if self.activation is not None:
             return self.activation(outputs)

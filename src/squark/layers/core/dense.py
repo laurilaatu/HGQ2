@@ -52,11 +52,9 @@ class QDense(QLayerBaseSingleInput, Dense):
     def call(self, inputs, training=None):
         if self.enable_iq:
             inputs = self.iq(inputs, training=training)
-        qkernel = self.kq(self.kernel)
-        x = ops.matmul(inputs, qkernel)
+        x = ops.matmul(inputs, self.qkernel)
         if self.bias is not None:
-            qbias = self.bq(self.bias)  # type: ignore
-            x = ops.add(x, qbias)
+            x = ops.add(x, self.qbias)
         if self.activation is not None:
             x = self.activation(x)
         return x

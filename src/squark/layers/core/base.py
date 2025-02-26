@@ -84,29 +84,31 @@ class QLayerMeta(ABCMeta):
                 new_params['training'] = training_param
                 new_signature = signature.replace(parameters=new_params.values())  # type: ignore
 
-            @wraps(original_call)
-            def call(self, *args, **kwargs):
-                training = kwargs.get('training', None)
-                if training and self.enable_ebops:
-                    if isinstance(args[0], (tuple, list)):
-                        tensors = args[0]
-                    else:
-                        tensors = args
-                    shapes = ((1,) + shape[1:] for shape in map(ops.shape, tensors))
-                    ebops = self._compute_ebops(*shapes)
-                    self._ebops.assign(ops.cast(ebops, self._ebops.dtype))
-                    self.add_loss(ebops * self.beta)
-                r = original_call(self, *args, **kwargs)
-                if not self.enable_oq or self.__output_quantizer_handled__:
-                    return r
-                assert not isinstance(
-                    r, (tuple, list)
-                ), f'Layer {self.name}({type(self)}) returns multiple outputs, which must be handled in subclasses.'
-                return self.oq(r, training=training)
+            if not getattr(cls, '__no_wrap_call__', False):
 
-            call.__signature__ = new_signature  # type: ignore
+                @wraps(original_call)
+                def call(self, *args, **kwargs):
+                    training = kwargs.get('training', None)
+                    if training and self.enable_ebops:
+                        if isinstance(args[0], (tuple, list)):
+                            tensors = args[0]
+                        else:
+                            tensors = args
+                        shapes = ((1,) + shape[1:] for shape in map(ops.shape, tensors))
+                        ebops = self._compute_ebops(*shapes)
+                        self._ebops.assign(ops.cast(ebops, self._ebops.dtype))
+                        self.add_loss(ebops * self.beta)
+                    r = original_call(self, *args, **kwargs)
+                    if not self.enable_oq or self.__output_quantizer_handled__:
+                        return r
+                    assert not isinstance(
+                        r, (tuple, list)
+                    ), f'Layer {self.name}({type(self)}) returns multiple outputs, which must be handled in subclasses.'
+                    return self.oq(r, training=training)
 
-            cls.call = call
+                call.__signature__ = new_signature  # type: ignore
+
+                cls.call = call
 
         return super().__call__(*args, **kwargs)  # type: ignore
 
