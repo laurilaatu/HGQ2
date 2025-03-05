@@ -1,6 +1,7 @@
-from keras import ops
+from math import prod
+
+from keras import constraints, initializers, ops, regularizers
 from keras.api.layers import Dense
-from keras import initializers, regularizers, constraints
 
 from ...quantizer import Quantizer
 from ...quantizer.config import QuantizerConfig
@@ -24,15 +25,17 @@ class QDense(QLayerBaseSingleInput, Dense):
         kq_conf: None | QuantizerConfig = None,
         iq_conf: None | QuantizerConfig = None,
         bq_conf: None | QuantizerConfig = None,
+        parallelization_factor=-1,
         **kwargs,
     ):
-        kwargs = gather_vars_to_kwargs('self|kq_conf|bq_conf')
+        kwargs = gather_vars_to_kwargs('self|kq_conf|bq_conf|parallelization_factor')
         super().__init__(lora_rank=None, **kwargs)
 
         kq_conf = kq_conf or QuantizerConfig('default', 'weight')
         self._kq = Quantizer(kq_conf, name=f'{self.name}_kq')
         bq_conf = bq_conf or QuantizerConfig('default', 'bias')
         self._bq = Quantizer(bq_conf, name=f'{self.name}_bq') if use_bias else None
+        self.parallelization_factor = parallelization_factor
 
     @property
     def kq(self):
@@ -44,6 +47,9 @@ class QDense(QLayerBaseSingleInput, Dense):
 
     def build(self, input_shape):
         super().build(input_shape)
+        n_parallel = prod(input_shape[1:-1])
+        self.n_parallel = n_parallel
+        self.parallelization_factor = self.parallelization_factor if self.parallelization_factor > 0 else n_parallel
 
         self.kq.build(ops.shape(self._kernel))
         if self.bias is not None:
@@ -64,6 +70,7 @@ class QDense(QLayerBaseSingleInput, Dense):
         bw_inp = self.iq.bits_(shape)
         bw_ker = self.kq.bits_(ops.shape(self.kernel))
         ebops = ops.sum(ops.matmul(bw_inp, bw_ker))
+        ebops = ebops * self.n_parallel / self.parallelization_factor
         if self.bq is not None:
             bw_bias = self.bq.bits_(ops.shape(self.bias))
             size = ops.cast(ops.prod(shape), self.dtype)
@@ -109,9 +116,9 @@ class QBatchNormDense(QDense):
         scale=True,
         momentum=0.99,
         epsilon=1e-3,
-        bn_gamma_initializer="ones",
-        moving_mean_initializer="zeros",
-        moving_variance_initializer="ones",
+        bn_gamma_initializer='ones',
+        moving_mean_initializer='zeros',
+        moving_variance_initializer='ones',
         bn_gamma_regularizer=None,
         bn_gamma_constraint=None,
         synchronized=False,
@@ -120,8 +127,7 @@ class QBatchNormDense(QDense):
         bq_conf: None | QuantizerConfig = None,
         **kwargs,
     ):
-
-        assert use_bias, "BatchNormDense must have `use_bias=True`"
+        assert use_bias, 'BatchNormDense must have `use_bias=True`'
         super().__init__(
             units=units,
             activation=activation,
@@ -156,7 +162,7 @@ class QBatchNormDense(QDense):
         if self.scale:
             self.bn_gamma = self.add_weight(
                 shape=shape,
-                name="bn_gamma",
+                name='bn_gamma',
                 initializer=self.bn_gamma_initializer,
                 regularizer=self.bn_gamma_regularizer,
                 constraint=self.bn_gamma_constraint,
@@ -166,14 +172,14 @@ class QBatchNormDense(QDense):
 
         self.moving_mean = self.add_weight(
             shape=shape,
-            name="moving_mean",
+            name='moving_mean',
             initializer=self.moving_mean_initializer,
             trainable=False,
             autocast=False,
         )
         self.moving_variance = self.add_weight(
             shape=shape,
-            name="moving_variance",
+            name='moving_variance',
             initializer=self.moving_variance_initializer,
             trainable=False,
             autocast=False,
@@ -188,7 +194,7 @@ class QBatchNormDense(QDense):
             bn_gamma = 1
         scaler = bn_gamma / ops.sqrt(var + self.epsilon)  # type: ignore
         kernel = ops.cast(self.kernel, self.kernel.dtype)
-        fused_qkernel = self.kq(scaler[:,None] * kernel)  # type: ignore
+        fused_qkernel = self.kq(scaler[:, None] * kernel)  # type: ignore
 
         offset = -mean @ kernel
         fused_qbias = self.bq(self.bias + offset)
@@ -207,6 +213,9 @@ class QBatchNormDense(QDense):
             self.moving_variance.assign(
                 self.moving_variance * self.momentum + var * (1.0 - self.momentum),
             )
+            # _var, _mean = ops.cast(var, self.moving_variance.dtype), ops.cast(mean, self.moving_mean.dtype)
+            # var = ops.stop_gradient(_var - var) + var
+            # mean = ops.stop_gradient(_mean - mean) + mean
         else:
             var, mean = self.moving_variance, self.moving_mean
 
