@@ -19,6 +19,4 @@ This is a refactored version of the [HGQ](https://github.com/calad0i/HGQ) librar
 pip install -e . # Install HGQ2 as local editable package. If you want to install it as a regular package, remove the `-e` flag.
 ```
 
-## Limitations
-
-- The current version of HGQ2 has **no** HLS/HDL backend support. Due to the dependency conflict with QKeras, integration with hls4ml will take some time.
+You will need to use `hls4ml` from this [fork](https://github.com/calad0i/hls4ml/tree/da4ml-v2) to generate the HLS projects. Minifloat quantization is not supported by the backend yet.
