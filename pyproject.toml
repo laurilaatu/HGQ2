@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 requires = [ "setuptools>=67.8", "setuptools-scm>=8" ]
 
 [project]
-name = "s-quark"
-version = "0.0.1"
-description = "QKeras Next"
+name = "hgq2"
+version = "0.1.0"
+description = "High Granularity Quantization 2"
 readme = "README.md"
 keywords = [ "hls4ml", "keras", "qkeras", "quantization" ]
 
@@ -41,15 +41,15 @@ optional-dependencies.test = [
   "pytest-sugar",
   "pytest-xdist",
 ]
-urls.repository = "https://github.com/calad0i/s-quark"
+urls.repository = "https://github.com/calad0i/HGQ2"
 
 [tool.setuptools]
-packages = [ "squark", "qkeras" ]
+packages = [ "hgq", "qkeras" ]
 include-package-data = true
 package-dir = { "" = "src" }
 
 [tool.setuptools_scm]
-write_to = "src/squark/_version.py"
+write_to = "src/hgq/_version.py"
 
 [tool.ruff]
 target-version = "py310"
@@ -57,7 +57,7 @@ target-version = "py310"
 line-length = 130
 indent-width = 4
 
-include = [ "src/qkeras/**/*.py", "src/squark/**/*.py" ]
+include = [ "src/hgq/**/*.py", "src/qkeras/**/*.py" ]
 
 format.indent-style = "space"
 format.quote-style = "single"
@@ -89,7 +89,7 @@ env = [
   "CLING_ENABLE_CUDA=0",
 ]
 
-addopts = "--import-mode=importlib --cov=src/squark --cov-report=xml --cov-report=html"
+addopts = "--import-mode=importlib --cov=src/hgq --cov-report=xml --cov-report=html"
 
 [tool.coverage.run]
 omit = [ "*/_version.py" ]

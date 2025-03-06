@@ -1,7 +1,7 @@
 from keras import ops
 from keras.api.initializers import Initializer
 
-from squark.quantizer import Quantizer
+from hgq.quantizer import Quantizer
 
 
 class QInitializer(Initializer):
@@ -43,4 +43,4 @@ class QInitializer(Initializer):
     def get_config(self):
         # TODO: either avoid (stateful) quantizers in the class, or make the init ephemeral. Avoid saving (stateful) quantizers.
         # Error is tentatively raised to avoid saving (stateful) quantizers.
-        raise ValueError('QInitializer is ephemeral in squark/qkeras. It should not be saved.')
+        raise ValueError('QInitializer is ephemeral in hgq/qkeras. It should not be saved.')

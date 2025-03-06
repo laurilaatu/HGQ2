@@ -43,7 +43,7 @@ class QLayerMeta(ABCMeta):
         # =========== Register as Keras serializable if possible =============
         # ====================================================================
 
-        if cls.get_config is not Layer.get_config and cls.__module__.startswith('squark'):
+        if cls.get_config is not Layer.get_config and cls.__module__.startswith('hgq'):
             original_get_config = cls.get_config
 
             @wraps(original_get_config)
@@ -53,7 +53,7 @@ class QLayerMeta(ABCMeta):
                 return config
 
             cls.get_config = get_config  # type: ignore
-            cls = register_keras_serializable(package='squark')(cls)
+            cls = register_keras_serializable(package='hgq')(cls)
 
     def __call__(cls: type, *args, **kwargs):
         if cls in QLayerMeta._wrapped_cls:
@@ -217,7 +217,7 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
         return config
 
     def enable_lora(self, *args, **kwargs):
-        raise NotImplementedError('LoRA is not supported in s-quark.')
+        raise NotImplementedError('LoRA is not supported in HGQ2.')
 
     @classmethod
     def from_config(cls, config):

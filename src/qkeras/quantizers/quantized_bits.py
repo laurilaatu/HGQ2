@@ -9,17 +9,17 @@ from keras import ops
 from keras.api.saving import register_keras_serializable
 from quantizers import get_fixed_quantizer
 
-from squark.config import QuantizerConfig
-from squark.constraints import Min, MinMax
-from squark.quantizer.config import KBIConfig
-from squark.quantizer.internal import DefaultBitwidthMapper, FixedPointQuantizerKBI
-from squark.utils.misc import numbers
+from hgq.config import QuantizerConfig
+from hgq.constraints import Min, MinMax
+from hgq.quantizer.config import KBIConfig
+from hgq.quantizer.internal import DefaultBitwidthMapper, FixedPointQuantizerKBI
+from hgq.utils.misc import numbers
 
 from .frozen_quantizer import FrozenFixedPointQuantizer
 from .utils import parse_string_to_args
 
 
-@register_keras_serializable(package='squark/qkeras')
+@register_keras_serializable(package='hgq/qkeras')
 class quantized_bits(QuantizerConfig):
     def __init__(
         self,
@@ -178,7 +178,7 @@ class quantized_bits(QuantizerConfig):
     def __call__(self, inputs, training=None):
         assert (
             training is None
-        ), 'quantized_bits in s-quark is merely a configuration. It does not support training. Call get_quantizer() to get the actual quantizer.'
+        ), 'quantized_bits in HGQ2 is merely a configuration. It does not support training. Call get_quantizer() to get the actual quantizer.'
         return_np = False
         if not ops.is_tensor(inputs):
             return_np = True

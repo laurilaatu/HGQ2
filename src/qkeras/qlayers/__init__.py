@@ -1,7 +1,7 @@
 import inspect
 
-from squark import layers
-from squark.config import QuantizerConfigScope
+from hgq import layers
+from hgq.config import QuantizerConfigScope
 
 from ..initializers import QInitializer as QInitializer  # TODO: use qkeras initializers when called from here
 from ..quantizers import get_quantizer

@@ -1,7 +1,7 @@
 from typing import Sequence
 
-from squark import layers
-from squark.config import QuantizerConfig
+from hgq import layers
+from hgq.config import QuantizerConfig
 
 class QDense(layers.QDense):
     def __init__(

@@ -133,7 +133,7 @@ class DummyQuantizer(TrainableQuantizerBase):
         return f'{self.__class__.__name__}(name={self.name}, built={self.built})'
 
 
-@register_keras_serializable(package='squark')
+@register_keras_serializable(package='hgq')
 class DefaultBitwidthMapper(BitwidthMapperBase):
     """Default bitwidth mapper for HG quantizers."""
 

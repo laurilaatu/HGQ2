@@ -1,5 +1,5 @@
 from .base import QLayerBase, QLayerBaseMultiInputs, QLayerBaseSingleInput
-from .dense import QDense, QBatchNormDense
+from .dense import QBatchNormDense, QDense
 from .einsum_dense import QEinsumDense
 
 __all__ = [

@@ -165,7 +165,7 @@ class QSimpleRNNCell(QLayerBaseSingleInput, SimpleRNNCell):
         return ebops
 
 
-@register_keras_serializable(package='squark')
+@register_keras_serializable(package='hgq')
 class QSimpleRNN(SimpleRNN):
     """Fully-connected RNN where the output is to be fed back as the new input.
 

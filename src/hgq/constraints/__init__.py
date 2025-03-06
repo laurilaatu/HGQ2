@@ -8,7 +8,7 @@ from ..utils.misc import numbers
 __all__ = ['MinMax', 'Min', 'Max']
 
 
-@register_keras_serializable(package='squark')
+@register_keras_serializable(package='hgq')
 class MinMax(Constraint):
     """Constrains the weights to between min_value and max_value."""
 
@@ -24,7 +24,7 @@ class MinMax(Constraint):
         return {'min_value': self.min_value, 'max_value': self.max_value}
 
 
-@register_keras_serializable(package='squark')
+@register_keras_serializable(package='hgq')
 class Min(Constraint):
     """Constrains the weights to greater or equal than min_value."""
 
@@ -39,7 +39,7 @@ class Min(Constraint):
         return {'min_value': self.min_value}
 
 
-@register_keras_serializable(package='squark')
+@register_keras_serializable(package='hgq')
 class Max(Constraint):
     """Constrains the weights to less or equal than max_value."""
 

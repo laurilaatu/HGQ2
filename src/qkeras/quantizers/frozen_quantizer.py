@@ -2,9 +2,9 @@ from keras.api import backend, initializers, ops
 from keras.api.constraints import Constraint
 from keras.api.regularizers import Regularizer
 
-from squark.constraints import MinMax
-from squark.quantizer.internal import FixedPointQuantizerKBI, numbers
-from squark.utils.misc import gather_vars_to_kwargs
+from hgq.constraints import MinMax
+from hgq.quantizer.internal import FixedPointQuantizerKBI, numbers
+from hgq.utils.misc import gather_vars_to_kwargs
 
 
 class FrozenFixedPointQuantizer(FixedPointQuantizerKBI):
