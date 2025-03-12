@@ -36,6 +36,7 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._seed_gen = None
+        self._is_weight = False
 
     @property
     def round_mode(self) -> str:
@@ -125,29 +126,35 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
     def get_minimum_i(self, inputs):
         raise NotImplementedError
 
-    def call(self, inputs, training=None):
-        if self.overflow_mode == 'WRAP' and self.trainable:
-            _new_i = self.get_minimal_i(inputs)
-            # Enforce constraints on i in case i is not trainable (WRAP mode)
-            if self._i.constraint is not None:
-                _new_i = self._i.constraint(_new_i)
-            current_i = ops.cast(self._i, ops.dtype(self._i))
-            if training:
-                new_i = ops.stop_gradient(ops.maximum((current_i - self.i_decay_speed), _new_i))  # type: ignore
-            else:
-                new_i = ops.where(self.i_decay_speed > 0, current_i, ops.maximum(current_i, _new_i))  # type: ignore
-                _new_k = self.get_any_k(inputs)
-                cur_k = ops.cast(self._k, 'int8')
-                new_k = ops.where(self.i_decay_speed < 0, _new_k, cur_k)  # type: ignore
-                self._k.assign(new_k)
-            self._i.assign(new_i)
+    def call(self, inputs, training=None):  # type: ignore
+        if self.overflow_mode == 'WRAP' and self.trainable and training:
+            if training or training == 'tracing':
+                _new_i = self.get_minimal_i(inputs)
+                # Enforce constraints on i in case i is not trainable (WRAP mode)
+                if self._i.constraint is not None:
+                    _new_i = self._i.constraint(_new_i)
+                current_i = ops.cast(self._i, ops.dtype(self._i))
+                if training:
+                    new_i = ops.stop_gradient(ops.maximum((current_i - self.i_decay_speed), _new_i))  # type: ignore
+                else:
+                    # tracing
+                    new_i = ops.stop_gradient(ops.maximum(current_i, _new_i))  # type: ignore
+                    _new_k = self.get_any_k(inputs)
+                    cur_k = ops.cast(self._k, 'int8')
+                    new_k = ops.where(self.i_decay_speed < 0, _new_k, cur_k)  # type: ignore
+                    self._k.assign(cur_k | new_k)  # type: ignore
+                self._i.assign(new_i)
 
-        k, i, f = self.kif
-        k = self.bw_mapper.bw_to_x(k, ops.shape(inputs))
-        i = self.bw_mapper.bw_to_x(i, ops.shape(inputs))
-        f = self.bw_mapper.bw_to_x(f, ops.shape(inputs))
-
-        return self.stateless_quantizer(inputs, k, i, f, training, self.seed_gen)
+        if self.overflow_mode == 'WRAP' and self._is_weight:
+            stochastic = self.stateless_quantizer.stochastic and training is True
+            f = self.bw_mapper.bw_to_x(self.f, ops.shape(inputs))
+            return self.stateless_quantizer.round(inputs, f, stochastic, self.seed_gen)
+        else:
+            k, i, f = self.kif
+            k = self.bw_mapper.bw_to_x(k, ops.shape(inputs))
+            i = self.bw_mapper.bw_to_x(i, ops.shape(inputs))
+            f = self.bw_mapper.bw_to_x(f, ops.shape(inputs))
+            return self.stateless_quantizer(inputs, k, i, f, training is True, self.seed_gen)
 
 
 class FixedPointQuantizerKBI(FixedPointQuantizerBase):
@@ -190,8 +197,10 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
         br: Regularizer | None = None,
         ir: Regularizer | None = None,
         i_decay_speed: numbers = float('inf'),
+        is_weight: bool = False,
         **kwargs,
     ):
+        super().__init__(**kwargs)
         if not isinstance(k0, Initializer) and not isinstance(b0, Initializer) and not isinstance(i0, Initializer):
             k0 = int(k0)
             assert k0 == 0 or k0 == 1, f'Invalid k0 value {k0}: must be 0 or 1.'
@@ -206,9 +215,9 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
         self.i_constraint = ic
         self.b_regularizer = br
         self.i_regularizer = ir
+        self._is_weight = is_weight
 
         self.validate_config()
-        super().__init__(**kwargs)
 
     def build(self, input_shape):
         bw_shape = self.bw_mapper.inference_weight_shape(input_shape)
@@ -313,8 +322,10 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
         ir: Regularizer | None = None,
         fr: Regularizer | None = None,
         i_decay_speed: numbers = float('inf'),
+        is_weight: bool = False,
         **kwargs,
     ):
+        super().__init__(**kwargs)
         if not isinstance(k0, Initializer) and not isinstance(i0, Initializer) and not isinstance(f0, Initializer):
             k0 = int(k0)
             assert k0 == 0 or k0 == 1, f'Invalid k0 value {k0}: must be 0 or 1.'
@@ -329,8 +340,8 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
         self.f_constraint = fc
         self.i_regularizer = ir
         self.f_regularizer = fr
+        self._is_weight = is_weight
         self.validate_config()
-        super().__init__(**kwargs)
 
     def build(self, input_shape):
         bw_shape = self.bw_mapper.inference_weight_shape(input_shape)

@@ -31,6 +31,7 @@ class QuantizerConfigBase(TypedDict):
     heterogeneous_axis: Sequence[int] | None
     bw_mapper: BitwidthMapperBase | None
     trainable: bool
+    is_weight: bool
 
 
 class KBIConfig(QuantizerConfigBase):
@@ -86,6 +87,7 @@ kbi_weight_default = KBIConfig(
     heterogeneous_axis=None,
     bw_mapper=None,
     trainable=True,
+    is_weight=True,
 )
 
 
@@ -104,6 +106,7 @@ kbi_datalane_default = KBIConfig(
     heterogeneous_axis=None,
     bw_mapper=None,
     trainable=True,
+    is_weight=False,
 )
 
 kif_weight_default = KIFConfig(
@@ -121,6 +124,7 @@ kif_weight_default = KIFConfig(
     heterogeneous_axis=None,
     bw_mapper=None,
     trainable=True,
+    is_weight=True,
 )
 
 
@@ -139,6 +143,7 @@ kif_datalane_default = KIFConfig(
     heterogeneous_axis=None,
     bw_mapper=None,
     trainable=True,
+    is_weight=False,
 )
 
 float_weight_default = FloatConfig(
@@ -155,6 +160,7 @@ float_weight_default = FloatConfig(
     heterogeneous_axis=None,
     bw_mapper=None,
     trainable=True,
+    is_weight=True,
 )
 
 
@@ -172,6 +178,7 @@ float_datalane_default = FloatConfig(
     heterogeneous_axis=(),
     bw_mapper=None,
     trainable=True,
+    is_weight=False,
 )
 
 kbi_table_default = kbi_weight_default.copy()
