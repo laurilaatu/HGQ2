@@ -89,7 +89,7 @@ class QLayerMeta(ABCMeta):
                 @wraps(original_call)
                 def call(self, *args, **kwargs):
                     training = kwargs.get('training', None)
-                    if training and self.enable_ebops:
+                    if training != False and self.enable_ebops:  # noqa: E712, training may be a special wrapper object
                         if isinstance(args[0], (tuple, list)):
                             tensors = args[0]
                         else:

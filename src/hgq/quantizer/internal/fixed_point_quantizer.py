@@ -127,7 +127,7 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
         raise NotImplementedError
 
     def call(self, inputs, training=None):  # type: ignore
-        if self.overflow_mode == 'WRAP' and self.trainable and training:
+        if self.overflow_mode == 'WRAP' and self.trainable and training != False:  # noqa: E712, training maybe a special wrapper object
             if training or training == 'tracing':
                 _new_i = self.get_minimal_i(inputs)
                 # Enforce constraints on i in case i is not trainable (WRAP mode)

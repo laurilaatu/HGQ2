@@ -1,3 +1,3 @@
-from .minmax_trace import set_trace_mode, trace_mode
+from .minmax_trace import trace_minmax
 
-__all__ = ['set_trace_mode', 'trace_mode']
+__all__ = ['trace_minmax']
