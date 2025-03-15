@@ -23,23 +23,20 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
 ]
-
-dependencies = [ "keras>=3", "quantizers>=1.1" ]
-optional-dependencies.docs = [
-  "myst-parser",
-  "pyparsing",
-  "sphinx",
-  "sphinx-rtd-theme",
-]
+dependencies = [ "keras>3", "quantizers>=1.1" ]
+optional-dependencies.docs = [ "myst-parser", "pyparsing", "sphinx", "sphinx-rtd-theme" ]
 optional-dependencies.test = [
-  "cppyy",
-  "jax",
+  "hls4ml @ git+https://github.com/calad0i/hls4ml.git@da4ml-v2",
+  "jax>=0.4.20",
+  "jaxlib>=0.4.20",
+  "keras>=3",
+  "numpy>=1.23",
   "pyparsing",
-  "pytest",
-  "pytest-cov",
+  "pytest>=7",
+  "pytest-cov>=4",
   "pytest-env",
   "pytest-sugar",
-  "pytest-xdist",
+  "pytest-xdist>=3.3",
 ]
 urls.repository = "https://github.com/calad0i/HGQ2"
 
@@ -72,24 +69,28 @@ lint.unfixable = [  ]
 
 [tool.pytest.ini_options]
 filterwarnings = [
-  "ignore:WARNING\\W Pytorch converter is not enabled!:UserWarning",
-  "ignore:.\\[93mcover_factor<1.0 will likely to result in overflows:UserWarning",
   "ignore:You are saving your model as an HDF5 file:UserWarning",
   "ignore:Even though the `tf.config.experimental_run_functions_eagerly`:UserWarning",
   "ignore:pkg_resources is deprecated as an API:DeprecationWarning",
   "ignore:distutils Version classes are deprecated:DeprecationWarning",
   "ignore:module 'sre_constants' is deprecated:DeprecationWarning",
   "ignore:Deprecated call to `pkg_resources.declare_namespace:DeprecationWarning",
+  "ignore:in the future the `.dtype` attribute of a given datatype object must be a valid dtype instance.:DeprecationWarning",
+  "ignore:Skipping variable loading for optimizer 'adam':UserWarning",
 ]
 
 env = [
-  "KERAS_BACKEND=jax",
-  "JAX_PLATFORMS=cpu",
   "CUDA_VISIBLE_DEVICES=-1",
-  "CLING_ENABLE_CUDA=0",
+  "KERAS_BACKEND=torch",
+  "JAX_PLATFORMS=cpu",
 ]
 
-addopts = "--import-mode=importlib --cov=src/hgq --cov-report=xml --cov-report=html"
+addopts = [
+  "--import-mode=importlib",
+  "--cov=src/hgq",
+  "--cov-report=xml",
+  "--cov-report=html",
+]
 
 [tool.coverage.run]
 omit = [ "*/_version.py" ]

@@ -187,10 +187,13 @@ float_table_default = float_weight_default.copy()
 
 kbi_table_default['homogeneous_axis'] = None
 kbi_table_default['heterogeneous_axis'] = ()
+kbi_table_default['is_weight'] = False
 kif_table_default['homogeneous_axis'] = None
 kif_table_default['heterogeneous_axis'] = ()
+kif_table_default['is_weight'] = False
 float_table_default['homogeneous_axis'] = None
 float_table_default['heterogeneous_axis'] = ()
+float_table_default['is_weight'] = False
 
 default_configs: dict[tuple[str, str], KIFConfig | KBIConfig | FloatConfig] = {
     ('kbi', 'weight'): kbi_weight_default,

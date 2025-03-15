@@ -18,7 +18,7 @@ def minimal_i_given_xb(x, b, symmetric=False):
         return ops.ceil(ops.log2(ops.abs(x) / (2**-b + eps) + eps))
     i_pos = ops.ceil(ops.log2(x / (1 - 2**-b + eps) + eps))
     i_neg = ops.ceil(ops.log2(-x - eps))
-    return ops.where(x >= 0, i_pos, i_neg)
+    return ops.where(b > 0, ops.where(x >= 0, i_pos, i_neg), 0)
 
 
 def minimal_i_given_xf(x, f, symmetric=False):
@@ -127,34 +127,11 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
         raise NotImplementedError
 
     def call(self, inputs, training=None):  # type: ignore
-        if self.overflow_mode == 'WRAP' and self.trainable and training != False:  # noqa: E712, training maybe a special wrapper object
-            if training or training == 'tracing':
-                _new_i = self.get_minimal_i(inputs)
-                # Enforce constraints on i in case i is not trainable (WRAP mode)
-                if self._i.constraint is not None:
-                    _new_i = self._i.constraint(_new_i)
-                current_i = ops.cast(self._i, ops.dtype(self._i))
-                if training:
-                    new_i = ops.stop_gradient(ops.maximum((current_i - self.i_decay_speed), _new_i))  # type: ignore
-                else:
-                    # tracing
-                    new_i = ops.stop_gradient(ops.maximum(current_i, _new_i))  # type: ignore
-                    _new_k = self.get_any_k(inputs)
-                    cur_k = ops.cast(self._k, 'int8')
-                    new_k = ops.where(self.i_decay_speed < 0, _new_k, cur_k)  # type: ignore
-                    self._k.assign(cur_k | new_k)  # type: ignore
-                self._i.assign(new_i)
-
-        if self.overflow_mode == 'WRAP' and self._is_weight:
-            stochastic = self.stateless_quantizer.stochastic and training is True
-            f = self.bw_mapper.bw_to_x(self.f, ops.shape(inputs))
-            return self.stateless_quantizer.round(inputs, f, stochastic, self.seed_gen)
-        else:
-            k, i, f = self.kif
-            k = self.bw_mapper.bw_to_x(k, ops.shape(inputs))
-            i = self.bw_mapper.bw_to_x(i, ops.shape(inputs))
-            f = self.bw_mapper.bw_to_x(f, ops.shape(inputs))
-            return self.stateless_quantizer(inputs, k, i, f, training is True, self.seed_gen)
+        k, i, f = self.kif
+        k = self.bw_mapper.bw_to_x(k, ops.shape(inputs))
+        i = self.bw_mapper.bw_to_x(i, ops.shape(inputs))
+        f = self.bw_mapper.bw_to_x(f, ops.shape(inputs))
+        return self.stateless_quantizer(inputs, k, i, f, training is True, self.seed_gen)
 
 
 class FixedPointQuantizerKBI(FixedPointQuantizerBase):
@@ -281,6 +258,37 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
         assert self.b_regularizer is None or isinstance(self.b_regularizer, Regularizer)
         assert self.i_regularizer is None or isinstance(self.i_regularizer, Regularizer)
 
+    def call(self, inputs, training=None):
+        if self.overflow_mode == 'WRAP' and self.trainable:
+            stochastic = self.stateless_quantizer.stochastic and training is True
+            if training or training == 'tracing':  # noqa: E712, training maybe a special wrapper object
+                new_i = self.get_minimal_i(inputs)
+                if self._i.constraint is not None:
+                    new_i = self._i.constraint(new_i)
+                if training:
+                    new_i = ops.stop_gradient(ops.maximum((self.i - self.i_decay_speed), new_i))  # type: ignore
+                    self._i.assign(new_i)
+
+                    f = self.bw_mapper.bw_to_x(self.f, ops.shape(inputs))
+                    return self.stateless_quantizer.round(inputs, f, stochastic, self.seed_gen)
+                else:
+                    new_i = ops.stop_gradient(ops.maximum(self.i, new_i))  # type: ignore
+
+                    f = self.bw_mapper.bw_to_x(self.b - new_i, ops.shape(inputs))  # type: ignore
+                    rinputs = self.stateless_quantizer.round(inputs, f, stochastic, self.seed_gen)
+                    new_k = self.get_any_k(rinputs)
+                    new_k = ops.cast(ops.cast(self.k, 'bool') | new_k, self._k.dtype)  # type: ignore
+                    self._k.assign(new_k)
+                    mask = (self.b == 0) & (new_k == 0)  # type: ignore
+                    self._i.assign(ops.where(mask, 0, new_i))
+                    return rinputs
+
+            if self._is_weight:
+                f = self.bw_mapper.bw_to_x(self.f, ops.shape(inputs))
+                return self.stateless_quantizer.round(inputs, f, stochastic, self.seed_gen)
+
+        return super().call(inputs, training is True)
+
 
 class FixedPointQuantizerKIF(FixedPointQuantizerBase):
     """Internal quantizer for fixed-point quantization parameterized by keep_negative, integer bits, and fractional bits.
@@ -372,6 +380,42 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
         )
 
         super().build(input_shape)
+
+    def call(self, inputs, training=None):  # type: ignore
+        if self.overflow_mode == 'WRAP' and self.trainable:
+            f = self.bw_mapper.bw_to_x(self.f, ops.shape(inputs))
+            stochastic = self.stateless_quantizer.stochastic and training is True
+            rinputs = self.stateless_quantizer.round(inputs, f, stochastic, self.seed_gen)
+
+            if training or training == 'tracing':  # noqa: E712, training maybe a special wrapper object
+                _new_i = self.get_minimal_i(rinputs)
+                # Enforce constraints on i in case i is not trainable (WRAP mode)
+                if self._i.constraint is not None:
+                    _new_i = self._i.constraint(_new_i)
+                if training:
+                    new_i = ops.stop_gradient(ops.maximum((self.i - self.i_decay_speed), _new_i))  # type: ignore
+                    self._i.assign(new_i)
+                else:
+                    # tracing
+                    new_i = ops.stop_gradient(ops.maximum(self.i, _new_i))  # type: ignore
+                    new_k = self.get_any_k(rinputs)
+                    new_k = ops.cast(ops.cast(self.k, 'bool') | new_k, self._k.dtype)  # type: ignore
+                    new_f = self.f
+
+                    mask = (new_i + new_f == 0) & (new_k == 0)  # type: ignore
+                    new_i = ops.where(mask, 0, new_i)
+                    new_f = ops.where(mask, 0, new_f)
+
+                    self._k.assign(new_k)
+                    self._i.assign(new_i)
+                    self._f.assign(new_f)
+
+                return rinputs
+
+            if self._is_weight:
+                return rinputs
+
+        return super().call(inputs, training is True)
 
     @property
     def k(self):

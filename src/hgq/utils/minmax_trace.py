@@ -27,22 +27,27 @@ class TrainingFlagWrapper:
 def trace_minmax(
     model: keras.Model, data: ArrayLike | PyDataset, reset=True, batch_size=1024, verbose: int | bool = 0, return_results=False
 ):
+    if not isinstance(data, PyDataset):
+        _data = []
+        for i in range(0, len(data), batch_size):  # type: ignore
+            _data.append((data[i : i + batch_size], None))  # type: ignore
+        data = _data
+
     if reset:
         _reset_minmax(model)
     record: dict[str, int] = {}
-    if not isinstance(data, PyDataset):
-        data = []
-        for i in range(0, len(data), batch_size):
-            data.append((data[i : i + batch_size], None))
+
     results = []
     use_pbar = verbose is True or verbose > 1
-    with tqdm(data, leave=False, disable=not use_pbar) as pbar:  # type: ignore
-        for i, (x, _) in enumerate(pbar):  # type: ignore
-            if len(data) == i:  # type: ignore
-                break  # keras dataloader iterator is infinite
-            r = model(x, training=TrainingFlagWrapper('tracing'))
+    n_batch = len(data)  # type: ignore
+    n_outputs = len(model.outputs)
+
+    with tqdm(total=n_batch, leave=False, disable=not use_pbar) as pbar:  # type: ignore
+        for i in range(n_batch):
+            r = model(data[i][0], training=TrainingFlagWrapper('tracing'))
             if return_results:
                 results.append(r)
+            pbar.update(1)
 
     if verbose:
         record = {}
@@ -55,4 +60,6 @@ def trace_minmax(
         print(f'Total: {sum(record.values())}')
 
     if return_results:
-        return keras.ops.concatenate(results)
+        if n_outputs == 1:
+            return keras.ops.concatenate(results)
+        return tuple(keras.ops.concatenate([r[i] for r in results]) for i in range(n_outputs))

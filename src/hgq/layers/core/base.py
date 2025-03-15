@@ -88,17 +88,18 @@ class QLayerMeta(ABCMeta):
 
                 @wraps(original_call)
                 def call(self, *args, **kwargs):
+                    r = original_call(self, *args, **kwargs)
                     training = kwargs.get('training', None)
-                    if training != False and self.enable_ebops:  # noqa: E712, training may be a special wrapper object
+                    if training or training == 'tracing' and self.enable_ebops:  # noqa: E712, training may be a special wrapper object
                         if isinstance(args[0], (tuple, list)):
                             tensors = args[0]
                         else:
                             tensors = args
                         shapes = ((1,) + shape[1:] for shape in map(ops.shape, tensors))
-                        ebops = self._compute_ebops(*shapes)
-                        self._ebops.assign(ops.cast(ebops, self._ebops.dtype))
-                        self.add_loss(ebops * self.beta)
-                    r = original_call(self, *args, **kwargs)
+                        if self.enable_ebops:
+                            ebops = self._compute_ebops(*shapes)
+                            self._ebops.assign(ops.cast(ebops, self._ebops.dtype))
+                            self.add_loss(ebops * self.beta)
                     if not self.enable_oq or self.__output_quantizer_handled__:
                         return r
                     assert not isinstance(
@@ -128,13 +129,13 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        if enable_ebops is None:
-            enable_ebops = global_config['enable_ebops']
         beta0 = beta0 if beta0 is not None else global_config['beta0']
         beta0 = Constant(float(beta0)) if not isinstance(beta0, Initializer) else beta0
 
         self._enable_iq = enable_iq if enable_iq is not None else global_config['enable_iq']
         self._enable_oq = enable_oq if enable_oq is not None else global_config['enable_oq']
+        if enable_ebops is None:
+            enable_ebops = global_config['enable_ebops'] and self.enable_iq
         self._enable_ebops = enable_ebops
         self._beta0 = beta0
 

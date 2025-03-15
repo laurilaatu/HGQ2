@@ -1,6 +1,5 @@
 from collections.abc import Sequence
 from math import prod
-from warnings import warn
 
 from keras import ops
 from keras.src import backend
@@ -14,7 +13,7 @@ from .core import QLayerBaseSingleInput
 class QSoftmax(QLayerBaseSingleInput):
     def __init__(
         self,
-        axis: int | Sequence[int] = -1,
+        axis: int | Sequence[int] | None = None,
         iq_conf: None | QuantizerConfig = None,
         stable=True,
         exp_iq_conf: None | QuantizerConfig = None,
@@ -26,10 +25,14 @@ class QSoftmax(QLayerBaseSingleInput):
         parallelization_factor: int = -1,
         **kwargs,
     ):
+        # Keras h5 loader pops axis silent when it is a list longer than 1.
+        axes = kwargs.pop('axes', None)
+        assert axis is None or axes is None, 'Use only one of `axis` or `axes`.'
+        self.axes = axes or (tuple(axis) if isinstance(axis, Sequence) else (axis,))
+
         self.supports_masking = True
         super().__init__(iq_conf=iq_conf, **kwargs)  # type: ignore
         self.stable = stable
-        self.axis = tuple(axis) if isinstance(axis, Sequence) else (axis,)
         self.parallelization_factor = parallelization_factor
 
         assert not allow_heterogeneous_table, 'No hls4ml support; remove this check if you know what you are doing.'
@@ -61,9 +64,11 @@ class QSoftmax(QLayerBaseSingleInput):
         if 'k0' in exp_oq_conf.config:
             exp_oq_conf.config['k0'] = 0
 
-        if inv_oq_conf.config.get('overflow_mode', None) == 'WRAP':
-            warn('WRAP overflow mode on inverse table will likely cause hugh table size. Automatically changing to SAT.')
-            inv_oq_conf.config['overflow_mode'] = 'SAT'  # type: ignore
+        # hls4ml only supports the following configurations
+        inv_oq_conf.config['overflow_mode'] = 'SAT'  # type: ignore
+        inv_oq_conf.config['round_mode'] = 'RND_CONV'  # type: ignore
+        exp_oq_conf.config['overflow_mode'] = 'SAT'  # type: ignore
+        exp_oq_conf.config['round_mode'] = 'RND_CONV'  # type: ignore
 
         self.inv_table = QUnaryFunctionLUT(
             _inv,
@@ -83,20 +88,21 @@ class QSoftmax(QLayerBaseSingleInput):
             enable_iq=self.stable,
             enable_oq=True,
             allow_heterogeneous_table=allow_heterogeneous_table,
+            allow_heterogeneous_input=False,
             name=f'{self.name}_exp_table',
-            enable_ebops=self.enable_ebops,
+            enable_ebops=self.enable_ebops and stable,
             beta0=self._beta0.clone(),
         )
 
     def build(self, input_shape):
         self.exp_table.build(input_shape)
-        axis = sorted(i if i >= 0 else i + len(input_shape) for i in self.axis)
-        self.axis = tuple(axis)
-        cond = not all(i1 - i0 > 1 for i0, i1 in zip(axis[:-1], axis[1:]))
-        warn_no_synth(cond, f'Softmax axis is not contiguous, hls4ml will not be able to synthesize this layer: {self.axis}')
+        axis = sorted(i if i >= 0 else i + len(input_shape) for i in self.axes)
+        self.axes = tuple(axis)
+        cond = not all(i1 - i0 == 1 for i0, i1 in zip(axis[:-1], axis[1:]))
+        warn_no_synth(cond, f'Softmax axis is not contiguous, hls4ml will not be able to synthesize this layer: {self.axes}')
 
         inv_shape = list(input_shape)
-        for i in self.axis:
+        for i in self.axes:
             inv_shape[i] = 1
         self.inv_table.build(tuple(inv_shape))
 
@@ -107,44 +113,49 @@ class QSoftmax(QLayerBaseSingleInput):
             inputs = self.iq(inputs, training=training)
 
         if self.stable:
-            inputs = ops.max(inputs, axis=self.axis, keepdims=True) - inputs
+            inputs = ops.max(inputs, axis=self.axes, keepdims=True) - inputs
 
         exp_inp = self.exp_table(inputs, training=training)
 
         if mask is not None:
             exp_inp = backend.cast(mask, ops.dtype(inputs)) * exp_inp
 
-        sums = ops.sum(exp_inp, axis=self.axis, keepdims=True)  # type: ignore
+        sums = ops.sum(exp_inp, axis=self.axes, keepdims=True)  # type: ignore
         divisor = self.inv_table(sums, training=training)
 
         return exp_inp * divisor
 
     def _compute_ebops(self, shape):
-        accum_shape = tuple(1 if i in self.axis else s for i, s in enumerate(shape))
+        accum_shape = tuple(1 if i in self.axes else s for i, s in enumerate(shape))
         max_instance = prod(accum_shape)
         n_instance = self.parallelization_factor if self.parallelization_factor > 0 else max_instance
         factor = n_instance / max_instance
 
-        if self.stable:
-            inp_bits = self.iq.bits_(shape)
-            substract_ebops = 1.55 * ops.sum(inp_bits)  # type: ignore # TODO: better ebops cost model for add and max
-        else:
-            substract_ebops = 0
-
+        inp_bits = self.iq.bits_(shape)
         exp_bits = self.exp_table.oq.bits_(shape)
         inv_bits = self.inv_table.oq.bits_(accum_shape)
 
-        accum_ebops = ops.sum(exp_bits) - ops.sum(ops.min(exp_bits, axis=self.axis))  # type: ignore
+        if self.stable:
+            substract_ebops = ops.sum(inp_bits)  # type: ignore # TODO: better ebops cost model for add and max
+        else:
+            substract_ebops = 0
+
+        accum_ebops = ops.sum(exp_bits) - ops.sum(ops.min(exp_bits, axis=self.axes))  # type: ignore
         mult_ebops = ops.sum(exp_bits * inv_bits)  # type: ignore
 
         ebops = substract_ebops + accum_ebops + mult_ebops
+
+        if not self.stable:
+            # iq is disabled for exp table, compute here
+            ebops += ops.sum((2.0**inp_bits) * exp_bits) * 0.01  # type: ignore
+
         return ebops * factor
 
     def get_config(self):
         config = super().get_config()
         config.update(
             {
-                'axis': self.axis,
+                'axes': self.axes,
                 'stable': self.stable,
                 'exp_oq_conf': self.exp_table.oq.config,
                 'exp_iq_conf': self.exp_table.iq.config if self.stable else None,

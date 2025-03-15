@@ -22,6 +22,8 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         iq_conf: QuantizerConfig | None = None,
         oq_conf: QuantizerConfig | None = None,
         enable_oq=True,
+        enable_iq=True,
+        allow_heterogeneous_input: bool = True,
         allow_heterogeneous_table: bool = False,
         override_oq_k0_to_0: bool = False,
         **kwargs,
@@ -31,6 +33,7 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         assert not allow_heterogeneous_table, 'No hls4ml support; remove this check if you know what you are doing.'
 
         self._allow_heterogeneous_table = allow_heterogeneous_table
+        self._allow_heterogeneous_input = allow_heterogeneous_input
 
         if enable_oq:
             oq_conf = oq_conf or QuantizerConfig('default', 'table')
@@ -40,8 +43,18 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
             if not allow_heterogeneous_table:
                 oq_conf.config['homogeneous_axis'] = None
                 oq_conf.config['heterogeneous_axis'] = ()
+        else:
+            self._enable_ebops = False
 
-        super().__init__(activation=activation, iq_conf=iq_conf, oq_conf=oq_conf, enable_oq=enable_oq, **kwargs)
+        if enable_iq and not allow_heterogeneous_input:
+            iq_conf = iq_conf or QuantizerConfig('default', 'datalane')
+            iq_conf.config['homogeneous_axis'] = None
+            iq_conf.config['heterogeneous_axis'] = ()
+
+        super().__init__(
+            activation=activation, iq_conf=iq_conf, oq_conf=oq_conf, enable_oq=enable_oq, enable_iq=enable_iq, **kwargs
+        )
+        self.built = False
 
     def call(self, inputs, training=None):
         if self.enable_iq:
@@ -60,6 +73,7 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
     def get_config(self):
         config = super().get_config()
         config['allow_heterogeneous_table'] = self._allow_heterogeneous_table
+        config['allow_heterogeneous_input'] = self._allow_heterogeneous_input
         return config
 
 

@@ -27,8 +27,8 @@ class QSum(QLayerBaseSingleInput):
         super().build(input_shape)
         axis = sorted(i if i >= 0 else i + len(input_shape) for i in self.axis)
         self.axis = tuple(axis)
-        cond = all(i1 - i0 > 1 for i0, i1 in zip(axis[:-1], axis[1:]))
-        warn_no_synth(cond, 'Softmax axis is not contiguous, hls4ml will not be able to synthesize this layer.')
+        cond = not all(i1 - i0 == 1 for i0, i1 in zip(axis[:-1], axis[1:]))
+        warn_no_synth(cond, 'Summing non-adjacent axes may not be supported by the synthesis tool.')
 
     @property
     def scale(self):
