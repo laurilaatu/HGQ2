@@ -1,7 +1,7 @@
 import pytest
 from keras import ops
 
-from hgq.layers import QSoftmax
+from hgq.layers import QSoftmax, QUnaryFunctionLUT
 from tests.base import LayerTestBase
 
 
@@ -9,17 +9,17 @@ def custom_fn(x):
     return ops.tanh(x) - ops.sin(x) + ops.log(ops.abs(x) + 1)  # type: ignore
 
 
-# class TestQUnaryFunctionLUT(LayerTestBase):
-#     layer_cls = QUnaryFunctionLUT
-#     custom_objects = {'custom_fn': custom_fn}
+class TestQUnaryFunctionLUT(LayerTestBase):
+    layer_cls = QUnaryFunctionLUT
+    custom_objects = {'custom_fn': custom_fn}
 
-#     @pytest.fixture(params=['sigmoid', 'tanh', custom_fn])
-#     def layer_kwargs(self, request):
-#         return {'activation': request.param}
+    @pytest.fixture(params=['sigmoid', 'tanh', custom_fn])
+    def layer_kwargs(self, request):
+        return {'activation': request.param}
 
-#     @pytest.fixture
-#     def input_shapes(self):
-#         return (8,)
+    @pytest.fixture
+    def input_shapes(self):
+        return (8,)
 
 
 class TestSoftmax(LayerTestBase):

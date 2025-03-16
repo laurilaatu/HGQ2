@@ -93,7 +93,7 @@ class LayerTestBase:
         raise NotImplementedError
 
     @pytest.fixture
-    def input_data(self, input_shapes, N: int = 1000) -> np.ndarray | tuple[np.ndarray, ...]:
+    def input_data(self, input_shapes, N: int = 5000) -> np.ndarray | tuple[np.ndarray, ...]:
         """Generate test input data"""
         if isinstance(input_shapes[0], int):
             return np.random.randn(N, *input_shapes).astype(np.float32)
@@ -129,7 +129,7 @@ class LayerTestBase:
                         b.ravel()[0] = 1
                     _layer._b.assign(ops.array(b))
                 if isinstance(_layer, FixedPointQuantizerKIF):
-                    f = np.random.randint(-2, 6, _layer._f.shape)
+                    f = np.random.randint(2, 8, _layer._f.shape)
                     i = np.array(ops.stop_gradient(_layer.i))
                     f = np.minimum(f, 12 - i)
                     if np.all(i + f == 0):
@@ -184,7 +184,7 @@ class LayerTestBase:
         # Add a loss layer for testing
         model_wrap = keras.Sequential([model, keras.layers.Dense(1)])
 
-        labels = keras.ops.zeros((input_data.shape[0], 1))
+        labels = ops.array(np.random.rand(input_data.shape[0], 1))
 
         initial_weights_np = [w.numpy() for w in model.trainable_variables]
 
