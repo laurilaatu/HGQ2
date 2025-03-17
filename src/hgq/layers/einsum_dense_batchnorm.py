@@ -76,9 +76,10 @@ class QEinsumDenseBatchnorm(QEinsumDense):  # type: ignore
         normalize_axes = normalize_axes or bias_axes
         assert normalize_axes is not None, 'Either normalize_axes or bias_axes must be provided.'
         self.normalize_axes = normalize_axes
+        self._check_normalize_axes()
 
     def _check_normalize_axes(self):
-        kernel_axes, output_axes = self.equation.split(',')[1].split('->')[0]
+        kernel_axes, output_axes = self.equation.split(',')[1].split('->')
         for c in self.normalize_axes:
             if c not in kernel_axes:
                 raise ValueError(f'Axis {c} not found in kernel axes {kernel_axes}')

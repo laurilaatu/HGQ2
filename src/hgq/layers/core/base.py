@@ -8,7 +8,6 @@ from keras import ops
 from keras.api.initializers import Constant, Initializer
 from keras.api.layers import Layer
 from keras.api.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
-from keras.src import backend
 
 from ...config.layer import global_config
 from ...quantizer import Quantizer, QuantizerConfig
@@ -160,13 +159,13 @@ class QLayerBase(Layer, metaclass=QLayerMeta):
     @property
     def beta(self):
         if self._beta is None:
-            return backend.convert_to_tensor(0)
+            return ops.cast(0, 'float32')
         return ops.cast(self._beta, ops.dtype(self._beta))
 
     @property
     def ebops(self):
         if self._ebops is None:
-            return backend.convert_to_tensor(0)
+            return ops.cast(0, 'uint32')
         return ops.cast(self._ebops, ops.dtype(self._ebops))
 
     @property

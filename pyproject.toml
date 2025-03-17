@@ -81,8 +81,10 @@ filterwarnings = [
 
 env = [
   "CUDA_VISIBLE_DEVICES=-1",
-  "KERAS_BACKEND=torch",
+  "KERAS_BACKEND=jax",
   "JAX_PLATFORMS=cpu",
+  "MKL_NUM_THREADS=1",
+  "OPENBLAS_NUM_THREADS=1",
 ]
 
 addopts = [

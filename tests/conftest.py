@@ -2,25 +2,47 @@ import os
 import random
 from pathlib import Path
 
+import keras
 import numpy as np
 import pytest
 
 
-@pytest.fixture(scope='session', autouse=True)
-def set_random_seed():
+@pytest.fixture(scope='session', autouse=True, params=[42])
+def set_random_seed(request):
     """Set random seeds for reproducibility"""
-    np.random.seed(42)
-    random.seed(42)
-    backend = os.environ.get('KERAS_BACKEND', 'tensorflow')
+
+    seed = request.param
+    np.random.seed(seed)
+    random.seed(seed)
+    backend = keras.backend.backend()
     match backend:
         case 'tensorflow':
             import tensorflow as tf
 
-            tf.random.set_seed(42)
+            tf.random.set_seed(seed)
         case 'torch':
             import torch
 
-            torch.manual_seed(42)
+            torch.manual_seed(seed)
+        case 'jax':
+            pass
+        case _:
+            raise ValueError(f'Unknown backend: {backend}')
+
+
+@pytest.fixture(scope='session', autouse=True)
+def configure_backend():
+    backend = keras.backend.backend()
+
+    match backend:
+        case 'tensorflow':
+            import tensorflow as tf
+
+            tf.config.threading.set_intra_op_parallelism_threads(1)
+        case 'torch':
+            import torch
+
+            torch.set_float32_matmul_precision('highest')
         case 'jax':
             pass
         case _:

@@ -1,4 +1,5 @@
 import keras
+from keras import ops
 from keras.api.utils import PyDataset
 from numpy.typing import ArrayLike
 from tqdm import tqdm
@@ -61,5 +62,5 @@ def trace_minmax(
 
     if return_results:
         if n_outputs == 1:
-            return keras.ops.concatenate(results)
-        return tuple(keras.ops.concatenate([r[i] for r in results]) for i in range(n_outputs))
+            return ops.stop_gradient(ops.concatenate(results))
+        return tuple(ops.stop_gradient(ops.concatenate([r[i] for r in results])) for i in range(n_outputs))

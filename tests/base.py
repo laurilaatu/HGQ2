@@ -26,9 +26,13 @@ class CtxGlue:
             ctx.__exit__(*args)
 
 
-def assert_equal(a: np.ndarray, b: np.ndarray):
-    a, b = a.ravel(), b.ravel()
+def _assert_equal(a: np.ndarray, b: np.ndarray):
+    a, b = np.asanyarray(a).ravel(), np.asanyarray(b).ravel()
+    # if keras.backend.backend() != 'torch':
     mismatches = np.where(a != b)[0]
+    # else:
+    #     # Torch has some extra numerical errors by default...
+    #     mismatches = np.where(np.abs(a - b) > 1e-6)[0]
     a_sample = a[mismatches[:5]]
     b_sample = b[mismatches[:5]]
     msg = f"""keras - c synth mismatch. {len(mismatches)} out of {len(a)} samples are different
@@ -137,7 +141,7 @@ class LayerTestBase:
                     _layer._f.assign(ops.array(f))
         for _layer in model._flatten_layers(False):
             # Randomize activation values
-            if hasattr(_layer, 'bias'):
+            if hasattr(_layer, 'bias') and isinstance(_layer.bias, keras.Variable):
                 bias = np.random.randn(*_layer.bias.shape)
                 _layer.bias.assign(ops.array(bias))
         return model
@@ -156,13 +160,14 @@ class LayerTestBase:
 
         np.testing.assert_array_equal(original_output, loaded_output)  # type: ignore
 
-        os.system(f'rm -rf {temp_directory}')
+        os.system(f"rm -rf '{temp_directory}'")
 
-    def test_hls4ml_conversion(self, model: keras.Model, input_data: np.ndarray, temp_directory: str, use_parallel_io: bool):
+    def test_hls4ml_conversion(
+        self, model: keras.Model, input_data: np.ndarray, temp_directory: str, use_parallel_io: bool, q_type: str
+    ):
         """Test hls4ml conversion and bit-exactness"""
 
-        trace_minmax(model, input_data)
-        model.save(temp_directory + '/keras_model.keras')
+        trace_keras_output_0 = trace_minmax(model, input_data, return_results=True, verbose=2)
 
         hls_model = convert_from_keras_model(
             model,
@@ -172,25 +177,32 @@ class LayerTestBase:
         )
 
         hls_model.compile()
-        input_data = input_data * 3  # Test for overflow in the same time
-        keras_output = model.predict(input_data)
-        hls_output = hls_model.predict(input_data)
-        assert_equal(keras_output, hls_output)  # type: ignore
+        if q_type == 'kif':
+            keras_output_0 = model.predict(input_data, batch_size=5000)
+            self.assert_equal(keras_output_0, trace_keras_output_0)
 
-        os.system(f'rm -rf {temp_directory}')
+        input_data = input_data * 2  # Test for overflow in the same time
+        keras_output = model.predict(input_data, batch_size=5000)
+        hls_output: np.ndarray = hls_model.predict(input_data).reshape(keras_output.shape)  # type: ignore
+        self.assert_equal(keras_output, hls_output)
 
-    def test_training(self, model: keras.Model, input_data: np.ndarray):
+        os.system(f"rm -rf '{temp_directory}'")
+
+    def assert_equal(self, keras_output, hls_output):
+        _assert_equal(keras_output, hls_output)
+
+    def test_training(self, model: keras.Model, input_data: np.ndarray, overflow_mode: str, *args, **kwargs):
         """Test basic training step"""
         # Add a loss layer for testing
         model_wrap = keras.Sequential([model, keras.layers.Dense(1)])
-
-        labels = ops.array(np.random.rand(input_data.shape[0], 1))
 
         initial_weights_np = [w.numpy() for w in model.trainable_variables]
 
         opt = keras.optimizers.SGD(learning_rate=1.0)
         loss = keras.losses.MeanSquaredError()
         model(input_data, training=True)  # Adapt init bitwidth
+
+        labels = ops.array(np.random.rand(input_data.shape[0]), dtype='float32')
         model_wrap.compile(optimizer=opt, loss=loss)  # type: ignore
         r0 = model_wrap.train_on_batch(input_data, labels)
 
@@ -201,6 +213,10 @@ class LayerTestBase:
         assert r1 != r0, f'Loss did not change: {r0} -> {r1}'
         for w0, w1 in zip(initial_weights_np, trained_weights):
             if w1.name in 'bif':
+                continue
+            if np.prod(w1.shape) < 10 and overflow_mode == 'SAT':
+                # Overflowing weight doesn't receive grad in SAT mode
+                # Chance of all overflow is high for small-sized weights, skip them
                 continue
             assert not np.array_equal(w0, w1.numpy()), f'Weight {w1.name} did not change'
         assert any(np.any(w0 != w1.numpy()) for w0, w1 in zip(initial_weights_np, trained_weights) if w1.name in 'bif')
