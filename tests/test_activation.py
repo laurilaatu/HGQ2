@@ -1,6 +1,8 @@
+import numpy as np
 import pytest
 from keras import ops
 
+from hgq.config import QuantizerConfigScope
 from hgq.layers import QSoftmax, QUnaryFunctionLUT
 from tests.base import LayerTestBase
 
@@ -42,9 +44,27 @@ class TestSoftmax(LayerTestBase):
     @pytest.fixture
     def layer_kwargs(self, axis, stable, use_parallel_io):
         if not use_parallel_io and axis != -1:
-            pytest.skip('Only support axis=-1 with io_stream')
+            pytest.skip('hls4ml only support axis=-1 with io_stream')
 
         return {
             'axis': axis,
             'stable': stable,
         }
+
+    def test_behavior(self, input_data, layer_kwargs):
+        with QuantizerConfigScope(default_q_type='dummy'):
+            softmax = QSoftmax(**layer_kwargs)
+
+        axis = layer_kwargs['axis']
+        hgq_output = softmax(input_data)
+        if axis == -1:
+            ref_output = ops.nn.softmax(input_data, axis=-1)
+        else:
+            shape = input_data.shape
+            input_data = ops.reshape(input_data, shape[:-2] + (-1,))
+            ref_output = ops.reshape(ops.nn.softmax(input_data, axis=-1), shape)
+
+        hgq_output_np: np.ndarray = ops.convert_to_numpy(hgq_output)  # type: ignore
+        ref_output_np: np.ndarray = ops.convert_to_numpy(ref_output)  # type: ignore
+
+        np.testing.assert_allclose(hgq_output_np, ref_output_np, atol=1e-6)
