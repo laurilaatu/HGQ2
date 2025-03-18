@@ -8,7 +8,7 @@ import pytest
 from hls4ml.converters import convert_from_keras_model
 from keras import ops
 
-from hgq.config import QuantizerConfigScope
+from hgq.config import LayerConfigScope, QuantizerConfigScope
 from hgq.layers import QLayerBase
 from hgq.quantizer.internal import FixedPointQuantizerKBI, FixedPointQuantizerKIF
 from hgq.utils import trace_minmax
@@ -76,6 +76,9 @@ class LayerTestBase:
             homogeneous_axis=(),
             overflow_mode=overflow_mode,
             round_mode=round_mode,
+            br=None,
+            ir=None,
+            fr=None,
         )
         scope_a = QuantizerConfigScope(
             default_q_type=q_type,
@@ -85,7 +88,8 @@ class LayerTestBase:
             overflow_mode=overflow_mode,
             round_mode=round_mode,
         )
-        return CtxGlue(scope_w, scope_a)
+        scope_layer = LayerConfigScope(beta0=0.0, enable_ebops=True)
+        return CtxGlue(scope_w, scope_a, scope_layer)
 
     @pytest.fixture
     def layer_kwargs(self, *args, **kwargs) -> dict[str, Any]:
@@ -131,14 +135,14 @@ class LayerTestBase:
         if use_parallel_io:
             for _layer in model._flatten_layers(False):
                 if isinstance(_layer, FixedPointQuantizerKBI):
-                    b = np.random.randint(0, 8, _layer._b.shape)
+                    b = np.random.randint(0, 5, _layer._b.shape)
                     i = np.array(ops.stop_gradient(_layer.i))
                     b = np.minimum(b, 12 - i)
                     if np.all(b == 0):
                         b.ravel()[0] = 1
                     _layer._b.assign(ops.array(b))
                 if isinstance(_layer, FixedPointQuantizerKIF):
-                    f = np.random.randint(2, 8, _layer._f.shape)
+                    f = np.random.randint(2, 6, _layer._f.shape)
                     i = np.array(ops.stop_gradient(_layer.i))
                     f = np.minimum(f, 12 - i)
                     if np.all(i + f == 0):
@@ -206,7 +210,7 @@ class LayerTestBase:
 
         initial_weights_np = [w.numpy() for w in model.trainable_variables]
 
-        opt = keras.optimizers.SGD(learning_rate=1.0)
+        opt = keras.optimizers.Lion(learning_rate=1.0)
         loss = keras.losses.MeanSquaredError()
         model(input_data, training=True)  # Adapt init bitwidth
 
