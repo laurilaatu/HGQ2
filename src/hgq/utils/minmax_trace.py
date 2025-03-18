@@ -1,8 +1,12 @@
+from collections.abc import Sequence
+
 import keras
 from keras import ops
 from keras.api.utils import PyDataset
 from numpy.typing import ArrayLike
 from tqdm import tqdm
+
+from .dataset import Dataset
 
 
 def _reset_minmax(layer: keras.Layer):
@@ -26,13 +30,17 @@ class TrainingFlagWrapper:
 
 
 def trace_minmax(
-    model: keras.Model, data: ArrayLike | PyDataset, reset=True, batch_size=1024, verbose: int | bool = 0, return_results=False
+    model: keras.Model,
+    data: ArrayLike | Sequence[ArrayLike] | PyDataset,
+    reset=True,
+    batch_size=1024,
+    verbose: int | bool = 0,
+    return_results=False,
 ):
+    n_outputs = len(model.outputs)
+
     if not isinstance(data, PyDataset):
-        _data = []
-        for i in range(0, len(data), batch_size):  # type: ignore
-            _data.append((data[i : i + batch_size], None))  # type: ignore
-        data = _data
+        data = Dataset(data, batch_size=batch_size, device='none')
 
     if reset:
         _reset_minmax(model)

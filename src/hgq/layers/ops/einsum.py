@@ -14,7 +14,7 @@ class QMatmul(QLayerBaseMultiInputs):
         inp1, inp2 = inputs
         return ops.matmul(inp1, inp2)
 
-    def _compute_ebops(self, shapes):
+    def _compute_ebops(self, *shapes):
         bits0, bits1 = (iq.bits_(shape) for iq, shape in zip(self.iq, shapes))
         ebops = ops.sum(ops.matmul(bits0, bits1))
         return ebops
@@ -31,7 +31,7 @@ class QEinsum(QLayerBaseMultiInputs):
             inputs = self.iq(inputs, training=training)
         return ops.einsum(self.equation, *inputs)
 
-    def _compute_ebops(self, shapes):
+    def _compute_ebops(self, *shapes):
         bitss = [iq.bits_(shape) for iq, shape in zip(self.iq, shapes)]
         ebops = ops.einsum(self._ebops_equation, *bitss)
         return ebops
