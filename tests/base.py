@@ -1,4 +1,5 @@
 import os
+from collections.abc import Sequence
 from typing import Any
 
 import keras
@@ -123,6 +124,10 @@ class LayerTestBase:
         outputs = layer(inputs)
         model = keras.Model(inputs, outputs)
 
+        self.perturbe_bw(use_parallel_io, model)
+        return model
+
+    def perturbe_bw(self, use_parallel_io, model):
         if use_parallel_io:
             for _layer in model._flatten_layers(False):
                 if isinstance(_layer, FixedPointQuantizerKBI):
@@ -144,7 +149,6 @@ class LayerTestBase:
             if hasattr(_layer, 'bias') and isinstance(_layer.bias, keras.Variable):
                 bias = np.random.randn(*_layer.bias.shape)
                 _layer.bias.assign(ops.array(bias))
-        return model
 
     @pytest.mark.parametrize('format', ['h5', 'keras'])
     def test_serialization(self, model, input_data, format: str, temp_directory: str):
@@ -181,7 +185,11 @@ class LayerTestBase:
             keras_output_0 = model.predict(input_data, batch_size=5000)
             self.assert_equal(keras_output_0, trace_keras_output_0)
 
-        input_data = input_data * 2  # Test for overflow in the same time
+        if isinstance(input_data, Sequence):
+            input_data = tuple(_input_data * 2 for _input_data in input_data)  # type: ignore
+        else:
+            input_data = input_data * 2  # Test for overflow in the same time
+
         keras_output = model.predict(input_data, batch_size=5000)
         hls_output: np.ndarray = hls_model.predict(input_data).reshape(keras_output.shape)  # type: ignore
         self.assert_equal(keras_output, hls_output)
@@ -194,7 +202,7 @@ class LayerTestBase:
     def test_training(self, model: keras.Model, input_data: np.ndarray, overflow_mode: str, *args, **kwargs):
         """Test basic training step"""
         # Add a loss layer for testing
-        model_wrap = keras.Sequential([model, keras.layers.Dense(1)])
+        model_wrap = keras.Sequential([model, keras.layers.Flatten(), keras.layers.Dense(1)])
 
         initial_weights_np = [w.numpy() for w in model.trainable_variables]
 
@@ -202,7 +210,8 @@ class LayerTestBase:
         loss = keras.losses.MeanSquaredError()
         model(input_data, training=True)  # Adapt init bitwidth
 
-        labels = ops.array(np.random.rand(input_data.shape[0]), dtype='float32')
+        data_len = len(input_data[0]) if isinstance(input_data, Sequence) else len(input_data)
+        labels = ops.array(np.random.rand(data_len), dtype='float32')
         model_wrap.compile(optimizer=opt, loss=loss)  # type: ignore
         r0 = model_wrap.train_on_batch(input_data, labels)
 
@@ -211,6 +220,8 @@ class LayerTestBase:
         r1 = loss(labels, model_wrap(input_data))
 
         assert r1 != r0, f'Loss did not change: {r0} -> {r1}'
+
+        boom = []
         for w0, w1 in zip(initial_weights_np, trained_weights):
             if w1.name in 'bif':
                 continue
@@ -218,5 +229,9 @@ class LayerTestBase:
                 # Overflowing weight doesn't receive grad in SAT mode
                 # Chance of all overflow is high for small-sized weights, skip them
                 continue
-            assert not np.array_equal(w0, w1.numpy()), f'Weight {w1.name} did not change'
+            if np.array_equal(w0, w1.numpy()):
+                # if w1.path == 'q_multi_head_attention/key/bias':
+                #     continue
+                boom.append(f'{w1.path}')
+        assert not boom, f"Weight {' AND '.join(boom)} did not change"
         assert any(np.any(w0 != w1.numpy()) for w0, w1 in zip(initial_weights_np, trained_weights) if w1.name in 'bif')

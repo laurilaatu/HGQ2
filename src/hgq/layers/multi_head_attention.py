@@ -161,7 +161,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
                 [self._num_heads, self._key_dim],
                 key_shape,
             ),
-            bias_axes=bias_axes if self._use_bias else None,
+            bias_axes=None,  # Useless as it will be directly fed to softmax on seq axis
             name='key',
             enable_iq=self.enable_iq and self._fuse not in ('qkv', 'kv'),
             enable_oq=True,
