@@ -73,24 +73,29 @@ class QBatchNormalization(QLayerBaseSingleInput, BatchNormalization):
     def build(self, input_shape):
         super().build(input_shape)
         if self.bq is not None:
-            self.bq.build(ops.shape(self.bn_beta))
+            self.bq.build(ops.shape(self.moving_mean))
         if self.kq is not None:
-            self.kq.build(ops.shape(self.bn_gamma))
+            self.kq.build(ops.shape(self.moving_variance))
         shape = [1] * len(input_shape)
         shape[self.axis] = input_shape[self.axis]
         self._shape = tuple(shape)
 
-        if hasattr(self.bn_beta, '_name'):
-            # using name / path or _name / _path depends on the keras version
-            self.bn_beta._name = 'bn_beta'
-            self.bn_beta._path = self.bn_beta._path.replace('/beta', '/bn_beta')
-            self.bn_gamma._name = 'bn_gamma'
-            self.bn_gamma._path = self.bn_gamma._path.replace('/gamma', '/bn_gamma')
-        else:
-            self.bn_beta.name = 'bn_beta'
-            self.bn_beta.path = self.bn_beta.path.replace('/beta', '/bn_beta')
-            self.bn_gamma.name = 'bn_gamma'
-            self.bn_gamma.path = self.bn_gamma.path.replace('/gamma', '/bn_gamma')
+        # using name / path or _name / _path depends on the keras version.
+        if self.bn_beta is not None:
+            if hasattr(self.bn_beta, '_name'):
+                self.bn_beta._name = 'bn_beta'
+                self.bn_beta._path = self.bn_beta._path.replace('/beta', '/bn_beta')
+            else:
+                self.bn_beta.name = 'bn_beta'
+                self.bn_beta.path = self.bn_beta.path.replace('/beta', '/bn_beta')
+
+        if self.bn_gamma is not None:
+            if hasattr(self.bn_gamma, '_name'):
+                self.bn_gamma._name = 'bn_gamma'
+                self.bn_gamma._path = self.bn_gamma._path.replace('/gamma', '/bn_gamma')
+            else:
+                self.bn_gamma.name = 'bn_gamma'
+                self.bn_gamma.path = self.bn_gamma.path.replace('/gamma', '/bn_gamma')
 
     def _scaler_and_offset(self):
         mean = ops.cast(self.moving_mean, self.dtype)
