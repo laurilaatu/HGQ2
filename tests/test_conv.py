@@ -15,9 +15,9 @@ class TestConv1D(LayerTestBase):
 
     @pytest.fixture(
         params=[
-            {'kernel_size': 1, 'strides': 2},
-            {'kernel_size': 3, 'strides': 1},
-            {'kernel_size': 2, 'strides': 2},
+            {'kernel_size': 1, 'strides': 2, 'parallelization_factor': -1},
+            {'kernel_size': 3, 'strides': 1, 'parallelization_factor': -1},
+            {'kernel_size': 2, 'strides': 2, 'parallelization_factor': 1},
         ]
     )
     def conv_params(self, request):
@@ -51,10 +51,10 @@ class TestConv2D(LayerTestBase):
 
     @pytest.fixture(
         params=[
-            {'kernel_size': (1, 1), 'strides': (2, 1)},
-            {'kernel_size': (3, 3), 'strides': (1, 1)},
-            {'kernel_size': (3, 2), 'strides': (1, 2)},
-            {'kernel_size': (2, 3), 'strides': (2, 2)},
+            {'kernel_size': (1, 1), 'strides': (2, 1), 'parallelization_factor': -1},
+            {'kernel_size': (3, 3), 'strides': (1, 1), 'parallelization_factor': -1},
+            {'kernel_size': (3, 2), 'strides': (1, 2), 'parallelization_factor': 1},
+            {'kernel_size': (2, 3), 'strides': (2, 2), 'parallelization_factor': 1},
         ]
     )
     def conv_params(self, request):
