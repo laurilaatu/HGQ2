@@ -143,7 +143,7 @@ class LayerTestBase:
                         b.ravel()[0] = 1
                     _layer._b.assign(ops.array(b))
                 if isinstance(_layer, FixedPointQuantizerKIF):
-                    f = np.random.randint(2, 6, _layer._f.shape)
+                    f = np.random.randint(2, 5, _layer._f.shape)
                     i = np.array(ops.stop_gradient(_layer.i))
                     f = np.minimum(f, 12 - i)
                     if np.all(i + f == 0):

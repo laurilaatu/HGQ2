@@ -39,9 +39,13 @@ class TestMultiHeadAttention(LayerTestBase):
     def value_dim(self, key_dim):
         return key_dim if self.fuse in ('qkv', 'kv') else key_dim + 1
 
+    @pytest.fixture(params=[1, -1])
+    def pf(self, request):
+        return request.param
+
     @pytest.fixture
-    def layer_kwargs(self, num_heads, key_dim, fuse):
-        return {'num_heads': num_heads, 'key_dim': key_dim, 'fuse': fuse}
+    def layer_kwargs(self, num_heads, key_dim, fuse, pf):
+        return {'num_heads': num_heads, 'key_dim': key_dim, 'fuse': fuse, 'parallelization_factor': pf}
 
     @pytest.fixture(params=[True])
     def use_parallel_io(self, request) -> bool:
