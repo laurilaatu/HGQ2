@@ -175,6 +175,7 @@ class LayerTestBase:
         self, model: keras.Model, input_data: np.ndarray, temp_directory: str, use_parallel_io: bool, q_type: str
     ):
         if self.hls4ml_not_supported:
+            os.system(f"rm -rf '{temp_directory}'")
             pytest.skip('No synth test')
         """Test hls4ml conversion and bit-exactness"""
 
@@ -185,6 +186,7 @@ class LayerTestBase:
             output_dir=temp_directory,
             backend='Vitis',
             io_type='io_parallel' if use_parallel_io else 'io_stream',
+            hls_config={'Model': {'Precision': 'ap_fixed<1,0>', 'ReuseFactor': 1, 'Strategy': 'latency'}},
         )
 
         hls_model.compile()
