@@ -196,7 +196,7 @@ class QBatchNormDense(QDense):
         kernel = ops.cast(self.kernel, self.kernel.dtype)
         fused_qkernel = self.kq(scaler[:, None] * kernel)  # type: ignore
 
-        offset = -mean @ kernel
+        offset = -ops.dot(mean, kernel)
         fused_qbias = self.bq(self.bias + offset)
 
         return fused_qkernel, fused_qbias

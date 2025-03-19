@@ -115,7 +115,7 @@ class DummyQuantizer(TrainableQuantizerBase):
 
     @property
     def bits(self):
-        return 0
+        return ops.convert_to_tensor(0, 'float32')
 
     @property
     def min(self):
