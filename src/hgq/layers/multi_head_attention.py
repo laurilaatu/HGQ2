@@ -85,6 +85,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
                 'oq_conf': self._qkvo_oq_conf,
                 'enable_ebops': self.enable_ebops,
                 'beta0': self._beta0.clone(),
+                'parallelization_factor': self.parallelization_factor,
             }
         )
         return common_kwargs
@@ -376,16 +377,17 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         V_shape = (1,) + self._value_dense.full_output_shape[1:]
         attn_score_shape = (1, self._num_heads, *query_shape[1:-1], *value_shape[1:-1])
 
-        if self.parallelization_factor > 0:
-            assert len(query_shape) == 3, f'EBOPs computation is only supported for 3D tensors, but got {query_shape}.'
-            b, *n, h, dk = Q_shape
-            b, *n, h, dv = K_shape
-            b, *n, h, dv = V_shape
+        # PF not supported for MHA for now.
+        # if self.parallelization_factor > 0:
+        #     assert len(query_shape) == 3, f'EBOPs computation with pf>0 is only supported for 3D tensors, but got {query_shape}.'
+        #     b, *n, h, dk = Q_shape
+        #     b, *n, h, dv = K_shape
+        #     b, *n, h, dv = V_shape
 
-            Q_shape = b, (1,) * len(n), h, dk
-            K_shape = b, (1,) * len(n), h, dv
-            V_shape = b, (1,) * len(n), h, dv
-            attn_score_shape = b, self._num_heads, *(1,) * len(n) * 2
+        #     Q_shape = b, (1,) * len(n), h, dk
+        #     K_shape = b, (1,) * len(n), h, dv
+        #     V_shape = b, (1,) * len(n), h, dv
+        #     attn_score_shape = b, self._num_heads, *(1,) * len(n) * 2
 
         bw_q = self._query_dense.oq.bits_(Q_shape)
         bw_k = self._key_dense.oq.bits_(K_shape)
@@ -401,6 +403,8 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
 
     @property
     def ebops(self):
+        if self._ebops is None:
+            return ops.cast(0, 'uint32')
         ebops = sum(
             (  # type: ignore
                 self._query_dense.ebops,
@@ -463,7 +467,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             return attention_output, attention_scores
         return attention_output
 
-    def _compute_attention(self, query, key, value, attention_mask=None, training=None):
+    def _compute_attention(self, query, key, value, attention_mask=None, training=None):  # type: ignore
         # Original _compute_attention in keras 3.5.0
         # Copied for disable to flash-attn that breaks quantization.
         """Applies Dot-product attention with query, key, value tensors.

@@ -20,18 +20,20 @@ class QEinsumDense(QLayerBaseSingleInput, EinsumDense):
         bias_regularizer=None,
         kernel_constraint=None,
         bias_constraint=None,
+        parallelization_factor=-1,
         kq_conf: None | QuantizerConfig = None,
         iq_conf: None | QuantizerConfig = None,
         bq_conf: None | QuantizerConfig = None,
         **kwargs,
     ):
-        kwargs = gather_vars_to_kwargs('self|kq_conf|bq_conf')
+        kwargs = gather_vars_to_kwargs('self|kq_conf|bq_conf|parallelization_factor')
         super().__init__(lora_rank=None, **kwargs)
 
         kq_conf = kq_conf or QuantizerConfig('default', 'weight')
         self._kq = Quantizer(kq_conf, name=f'{self.name}_kq')
         bq_conf = bq_conf or QuantizerConfig('default', 'bias')
         self._bq = None if bias_axes is None else Quantizer(bq_conf, name=f'{self.name}_bq')
+        self.parallelization_factor = parallelization_factor
 
     @property
     def kq(self):
