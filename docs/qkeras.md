@@ -1,38 +1,15 @@
-# Regarding QKeras
+# QKeras
 
-This framework is designed as a alternative to `QKeras` for ultra-low latency applications, mainly L1 triggers at colliders:
-
-While QKeras is designed as a general-purpose QAT framework, this framework is designed for L1 trigger-like applications only, which are highly, if not fully, unrolled and pipelined. This allows the framework to perform more aggressive optimizations that are not possible in `QKeras`.
-
-## Compatibility
-
-In general, this framework cannot be used in combination with `QKeras` layers or quantizers.
-
-However, by reusing a part of precision-derivation logics in this framework, it is possible to convert a `QKeras` model to a hls4ml-ready proxy model that will generate bit-accurate after hls4ml workflow:
-
-```python
-from HGQ import to_proxy_model
-
-proxy = to_proxy_model(qkeras_model, aggressive=False)
-model_hls = convert_from_keras_model(proxy, ...)
-```
-
-Due to the default behavior of `QKeras` quantizer, it is strongly recommended to use `Aggressive=False` when performing the conversion. Otherwise, there will likely be a large discrepancy between the proxy model and the original `QKeras` model due to the different overflow mode.
-
-```{note}
-Not all QKeras layers are not supported, such as `QConv*DBatchNorm`. If the model contains such layers, the conversion will fail.
-```
-
+## Compatibility layer
 
 ```{warning}
-The pre-requisite of this conversion is that the `QKeras` model must be a model that may be converted to a hls4ml model in a bit-accurate manner. This has two major implications:
-
-1. All inputs must be followed immediately by a `QActivation` layer with a `quantized_bits` activation to mark the input precision.
-2. All quantizers, when applicable, must have `alpha=1`. The default arbitrary power-of-two scaling is NOT achievable in hls4ml.
-
-If these conditions are not met, the conversion will fail.
-
-Also, if the quantizer for any parameter is missing, the framework will try to derive a bitwidth that will produce a bit-accurate model. However, this may result in a huge bitwidth **silently without warning**. Hence, before running synthesis, it is strongly recommended to check the bitwidth manually.
+Currently the compatibility layer is in alpha stage and **must** not be for any purpose other than testing or development. Please do not use it in production. In general, we recommend using `HGQ2` directly for all new models, as the compatibility layer only exposes a small subset of the `HGQ2` functionality, and we cannot guarantee that it will be maintained in the future. If you are using `QKeras` for L1 trigger applications, we recommend using `HGQ2` directly, as it is designed for this purpose and will be more efficient than `QKeras`.
 ```
 
-You can find an example of this conversion in [this notebook](https://github.com/calad0i/HGQ/tree/master/examples/qkeras.ipynb).
+This framework is designed as a alternative to `QKeras` for ultra-low latency applications, mainly L1 triggers at collider experiments. As `Qkeras` is based on keras v2, HGQ2 may not coexist with `QKeras` in the same environment, thus no interoperability could be expected.
+
+However, as most `QKeras` models targeting `hls4ml` may be represented 1:1 in HGQ2, we implemented a minimal `QKeras` compatibility layer on top of HGQ2. However, there are certain layers in `QKeras` that are not supported by HGQ2, such as the RNN family and hard activation layers. Operations not supported by `hls4ml`, such as `auto_po2` integer bits assignment with float scaling factors, are also not supported.
+
+## Installation
+
+HGQ2 provides a importable `qkeras` package directly, no extra procedure is required.
