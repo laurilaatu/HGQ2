@@ -4,6 +4,8 @@
 
 HGQ2 (High Granularity Quantization 2) is a quantization-aware training framework built on Keras v3, targeting real-time deep learning applications on edge devices like FPGAs. It provides a comprehensive set of tools for creating and training quantized neural networks with minimal effort with streamlined integration with hls4ml.
 
+A complete example of using HGQ2 can bbe found at [example/small_jet_tagger.ipynb](https://github.com/calad0i/HGQ2/blob/master/example/small_jet_tagger.ipynb) for a small jet tagging model. This example demonstrates how to create a quantized model, train it, and convert it for hardware deployment using hls4ml.
+
 ## Key Features
 
 - **Multi-backend support**: Works with TensorFlow, JAX, and PyTorch through Keras v3
@@ -152,6 +154,6 @@ with QuantizerConfigScope(place='datalane', heterogeneous_axis=None, homogeneous
     # Model creation
 ```
 
-Only one of `heterogeneous_axis` and `homogeneous_axis` are mutually exclusive, and setting both will raise an error. The tuples passed to these parameters specify the axes along which quantization is (not) applied heterogeneously. For a complete example, please refer to the example notebooks in the `example/` directory.
+Only one of `heterogeneous_axis` and `homogeneous_axis` are mutually exclusive, and setting both will raise an error. The tuples passed to these parameters specify the axes along which quantization is (not) applied heterogeneously. For a complete example, please refer to the [example notebooks](https://github.com/calad0i/HGQ2/blob/master/example) located in the repository.
 
 For more advanced configuration options, the user may override `bw_mapper` object in the quantizer config/scope. The `bw_mapper` object is of type `hgq.quantizer.internal.base.BitwidthMapperBase`, which is responsible for mapping between the quantization bitwidths and the data. Please refer to the `hgq.quantizer.internal.base.DefaultBitwidthMapper` class for the default implementation.
