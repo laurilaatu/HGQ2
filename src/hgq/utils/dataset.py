@@ -15,9 +15,8 @@ class Dataset(PyDataset):
             n_inp = len(x_set)
             if n_inp > 10:
                 warn(f'You have {n_inp} input tensors. Are you sure this is correct?')
-        n_out = 1
-        if y_set is not None:
-            self.n_out = None
+
+        n_out = 1 if y_set is not None else None
         if isinstance(y_set, (list, tuple)):
             n_out = len(y_set)
             if n_out > 10:
