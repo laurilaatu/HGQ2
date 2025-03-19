@@ -32,5 +32,6 @@ Compatibility
 """
 
 from . import config, layers, quantizer, utils
+from ._version import __version__  # noqa: F401
 
 __all__ = ['config', 'layers', 'quantizer', 'utils']

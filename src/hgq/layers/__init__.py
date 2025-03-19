@@ -1,5 +1,5 @@
 from ..quantizer import Quantizer
-from .activation import QPositiveUnaryFunctionLUT, QUnaryFunctionLUT
+from .activation import QUnaryFunctionLUT
 from .batch_normalization import QBatchNormalization
 from .conv import QConv1D, QConv2D, QConv3D
 from .core import *
@@ -9,7 +9,6 @@ from .ops import *
 from .softmax import QSoftmax
 
 __all__ = [
-    'QPositiveUnaryFunctionLUT',
     'QUnaryFunctionLUT',
     'QBatchNormalization',
     'QConv1D',

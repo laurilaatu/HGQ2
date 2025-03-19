@@ -77,29 +77,29 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         return config
 
 
-class QPositiveUnaryFunctionLUT(QUnaryFunctionLUT):
-    def __init__(
-        self,
-        activation: Callable | str,
-        iq_conf: QuantizerConfig | None = None,
-        oq_conf: QuantizerConfig | None = None,
-        allow_heterogeneous_table: bool = False,
-        **kwargs,
-    ):
-        assert kwargs.pop(
-            'enable_out_quantizer', True
-        ), 'enable_out_quantizer must be True for QPositiveUnaryFunctionLUT, if set.'
-        super().__init__(
-            activation=activation,
-            iq_conf=iq_conf,
-            oq_conf=oq_conf,
-            enable_oq=True,
-            allow_heterogeneous_table=allow_heterogeneous_table,
-            override_oq_k0_to_0=True,
-            **kwargs,
-        )
+# class QPositiveUnaryFunctionLUT(QUnaryFunctionLUT):
+#     def __init__(
+#         self,
+#         activation: Callable | str,
+#         iq_conf: QuantizerConfig | None = None,
+#         oq_conf: QuantizerConfig | None = None,
+#         allow_heterogeneous_table: bool = False,
+#         **kwargs,
+#     ):
+#         assert kwargs.pop(
+#             'enable_out_quantizer', True
+#         ), 'enable_out_quantizer must be True for QPositiveUnaryFunctionLUT, if set.'
+#         super().__init__(
+#             activation=activation,
+#             iq_conf=iq_conf,
+#             oq_conf=oq_conf,
+#             enable_oq=True,
+#             allow_heterogeneous_table=allow_heterogeneous_table,
+#             override_oq_k0_to_0=True,
+#             **kwargs,
+#         )
 
-    def call(self, inputs, training=None):
-        x = super().call(inputs, training=training)
-        eps = self.oq.epsilon_(ops.shape(inputs))
-        return ops.maximum(x, eps)
+#     def call(self, inputs, training=None):
+#         x = super().call(inputs, training=training)
+#         eps = self.oq.epsilon_(ops.shape(inputs))
+#         return ops.maximum(x, eps)
