@@ -1,6 +1,8 @@
-HGQ2: Scalable Quantization Realtime Keras
+HGQ2: High Granularity Quantization 2
 =============================================
 
+[![LGPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0.en.html)
+[![Documentation](https://github.com/calad0i/HGQ2/actions/workflows/sphinx-build.yml/badge.svg)](https://calad0i.github.io/HGQ2/)
 
 This is a refactored version of the [HGQ](https://github.com/calad0i/HGQ) library: a quantization-aware training framework targeting realtime deep learning applications. Besides all the features provided by the original HGQ library, this version includes the following improvements:
 
@@ -20,3 +22,7 @@ pip install -e . # Install HGQ2 as local editable package. If you want to instal
 ```
 
 You will need to use `hls4ml` from this [fork](https://github.com/calad0i/hls4ml/tree/da4ml-v2) to generate the HLS projects. Minifloat quantization is not supported by the backend yet.
+
+## Usage
+
+Please refer to the [documentation](https://calad0i.github.io/HGQ2/) for more details on how to use the library.
