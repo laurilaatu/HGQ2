@@ -164,9 +164,6 @@ class QDot(layers.QDot):
 class QEinsum(layers.QEinsum):
     pass
 
-class QMatmul(layers.QMatmul):
-    pass
-
 class QMaximum(layers.QMaximum):
     pass
 

@@ -27,7 +27,6 @@ __all__ = [
     'QAveragePow2',
     'QDot',
     'QEinsum',
-    'QMatmul',
     'QMaximum',
     'QMinimum',
     'QMultiply',

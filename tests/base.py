@@ -50,6 +50,7 @@ class LayerTestBase:
 
     layer_cls: type[QLayerBase] = QLayerBase
     custom_objects = {}
+    hls4ml_not_supported = False
 
     @pytest.fixture(params=[True, False])
     def use_parallel_io(self, request) -> bool:
@@ -173,6 +174,8 @@ class LayerTestBase:
     def test_hls4ml_conversion(
         self, model: keras.Model, input_data: np.ndarray, temp_directory: str, use_parallel_io: bool, q_type: str
     ):
+        if self.hls4ml_not_supported:
+            pytest.skip('No synth test')
         """Test hls4ml conversion and bit-exactness"""
 
         trace_keras_output_0 = trace_minmax(model, input_data, return_results=True, verbose=2)
