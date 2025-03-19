@@ -35,13 +35,13 @@ Do you observe a collapse of loss value, as well as EBOPs and accuracy? If so, y
 3. Reduce or remove bitwidth regularization in quantizer config.
 4. If it still doesn't work, please try using the quantizer type `dummy` to see if the problem is caused by the quantizer. If not, it may be caused by the model itself. If the keras model works but not the HGQ model with dummy quantizer, please report an issue.
 
-## `ERROR: [XFORM 203-504] Stop unrolling loop 'SomeName'` for Vivado HLS
+## `ERROR: [XFORM 203-504]` for Vivado HLS
 
 ```{warning}
-Please consider switching to Vitis HLS, as Vivado HLS is considered deprecated.
+Please consider switching to Vitis HLS, as Vivado HLS is considered deprecated. Vitis HLS does not have this limitation.
 ```
 
-Your layer is too big. No, actually, due to some hard-coded and yet stupid heuristic in Vivado HLS, it stops you from unrolling some large and/or nested loops regardless of whether it is actually synthesizable/large (e.g., a large but very sparse dense layer will fail). There is **NO** way to disable this check. You can try to reduce the size of your layer, or try to use `parallel_factor` for convolutional layers, or split dense layers manually.
+This is due to some hard-coded limitation in Vivado HLS, and there is no known way to disable this check. You can try to reduce the size of your layer, or try to use `parallel_factor` for convolutional layers, or split dense layers manually.
 
 ## QKeras?
 
