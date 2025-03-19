@@ -210,8 +210,12 @@ class LayerTestBase:
 
     def test_training(self, model: keras.Model, input_data: np.ndarray, overflow_mode: str, *args, **kwargs):
         """Test basic training step"""
-        # Add a loss layer for testing
+
         model_wrap = keras.Sequential([model, keras.layers.Flatten(), keras.layers.Dense(1)])
+        if isinstance(input_data, Sequence):
+            input_data = tuple(_input_data for _input_data in input_data)  # type: ignore
+        else:
+            input_data = ops.convert_to_tensor(input_data, dtype=model.dtype)  # type: ignore
 
         initial_weights_np = [w.numpy() for w in model.trainable_variables]
 

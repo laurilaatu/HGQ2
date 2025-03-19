@@ -20,6 +20,8 @@ def set_random_seed(request):
             import tensorflow as tf
 
             tf.random.set_seed(seed)
+            for device in tf.config.list_physical_devices('GPU'):
+                tf.config.experimental.set_memory_growth(device, True)
         case 'torch':
             import torch
 

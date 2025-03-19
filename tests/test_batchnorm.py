@@ -43,6 +43,7 @@ class TestBatchNorm(LayerTestBase):
         with QuantizerConfigScope(default_q_type='dummy'):
             bn = QBatchNormalization(**{**layer_kwargs, 'momentum': 0.0})  # type: ignore
 
+        input_data = ops.convert_to_tensor(input_data, dtype=bn.dtype)  # type: ignore
         hgq_output = bn(input_data, training=True)
         hgq_output_test = bn(input_data, training=False)
         mean, var = ops.moments(input_data, axes=layer_kwargs['axis'], keepdims=True)  # type: ignore
