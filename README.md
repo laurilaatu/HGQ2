@@ -1,7 +1,7 @@
 HGQ2: High Granularity Quantization 2
 =============================================
 
-[![LGPLv3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0.en.html)
+[![LGPLv3](https://img.shields.io/badge/License-LGPLv3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0.en.html)
 [![Documentation](https://github.com/calad0i/HGQ2/actions/workflows/sphinx-build.yml/badge.svg)](https://calad0i.github.io/HGQ2/)
 
 This is a refactored version of the [HGQ](https://github.com/calad0i/HGQ) library: a quantization-aware training framework targeting realtime deep learning applications. Besides all the features provided by the original HGQ library, this version includes the following improvements:

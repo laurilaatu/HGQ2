@@ -7,7 +7,7 @@
 High Granularity Quantization 2
 ===============================
 
-.. image:: https://img.shields.io/badge/License-GPLv3-blue.svg
+.. image:: https://img.shields.io/badge/License-LGPLv3-blue.svg
    :target: https://www.gnu.org/licenses/lgpl-3.0.en.html
 .. image:: https://github.com/calad0i/HGQ2/actions/workflows/sphinx-build.yml/badge.svg
    :target: https://calad0i.github.io/HGQ2/
