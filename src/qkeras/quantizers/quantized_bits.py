@@ -176,9 +176,9 @@ class quantized_bits(QuantizerConfig):
         return str(self)
 
     def __call__(self, inputs, training=None):
-        assert (
-            training is None
-        ), 'quantized_bits in HGQ2 is merely a configuration. It does not support training. Call get_quantizer() to get the actual quantizer.'
+        assert training is None, (
+            'quantized_bits in HGQ2 is merely a configuration. It does not support training. Call get_quantizer() to get the actual quantizer.'
+        )
         return_np = False
         if not ops.is_tensor(inputs):
             return_np = True

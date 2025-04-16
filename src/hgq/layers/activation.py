@@ -68,7 +68,7 @@ class QUnaryFunctionLUT(Activation, QLayerBaseSingleInput):
         bw_inp = self.iq.bits_(shape)
         bw_out = self.oq.bits_(shape)
         # TODO: more realistic cost for lookup tables
-        return ops.sum((2.0**bw_inp) * bw_out) * 0.01  # type: ignore
+        return ops.sum((2.0**bw_inp) * bw_out) * 1e-4  # type: ignore
 
     def get_config(self):
         config = super().get_config()

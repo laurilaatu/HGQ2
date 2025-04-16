@@ -140,9 +140,9 @@ class DefaultBitwidthMapper(BitwidthMapperBase):
     def __init__(self, heterogeneous_axis: Sequence[int] | None = None, homogeneous_axis: Sequence[int] | None = None, **kwargs):
         _shape_inferenced = kwargs.pop('_shape_inferenced', False)
         if not _shape_inferenced:
-            assert (heterogeneous_axis is None) ^ (
-                homogeneous_axis is None
-            ), 'Only one of quantize_dims and skip_dims can be specified.'
+            assert (heterogeneous_axis is None) ^ (homogeneous_axis is None), (
+                'Only one of quantize_dims and skip_dims can be specified.'
+            )
         self.heterogeneous_axis = heterogeneous_axis
         self.homogeneous_axis = homogeneous_axis
         self._shape_inferenced = _shape_inferenced
@@ -160,9 +160,9 @@ class DefaultBitwidthMapper(BitwidthMapperBase):
 
         weight_shape = [1] * N
         for i in self.heterogeneous_axis:  # type: ignore
-            assert (
-                input_shape[i] is not None
-            ), f'Unable to heterogeneously quantize axis {i} with unknown shape. Input shape: {input_shape}.'
+            assert input_shape[i] is not None, (
+                f'Unable to heterogeneously quantize axis {i} with unknown shape. Input shape: {input_shape}.'
+            )
             weight_shape[i] = input_shape[i]
         self._shape_inferenced = True
         return tuple(weight_shape)

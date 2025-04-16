@@ -101,9 +101,9 @@ class QLayerMeta(ABCMeta):
                             self.add_loss(ebops * self.beta)
                     if not self.enable_oq or self.__output_quantizer_handled__:
                         return r
-                    assert not isinstance(
-                        r, (tuple, list)
-                    ), f'Layer {self.name}({type(self)}) returns multiple outputs, which must be handled in subclasses.'
+                    assert not isinstance(r, (tuple, list)), (
+                        f'Layer {self.name}({type(self)}) returns multiple outputs, which must be handled in subclasses.'
+                    )
                     return self.oq(r, training=training)
 
                 call.__signature__ = new_signature  # type: ignore
@@ -323,9 +323,9 @@ class QLayerBaseMultiInputs(QLayerBase):
 
         if isinstance(self.iq_confs, QuantizerConfig):
             self._iq_confs = [self.iq_confs] * n_input
-        assert (
-            len(self.iq_confs) == n_input
-        ), f'number of iq_confs must match number of inputs, got {len(self._iq_confs)} != {n_input}'
+        assert len(self.iq_confs) == n_input, (
+            f'number of iq_confs must match number of inputs, got {len(self._iq_confs)} != {n_input}'
+        )
 
         self._iq = MultipleQuantizers(self._iq_confs)  # type: ignore
         self._iq.build(input_shape)

@@ -458,9 +458,9 @@ class QuantizerConfig(Mapping):
             self.config = {}
             return
 
-        assert (
-            kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None
-        ), 'homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them.'
+        assert kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None, (
+            'homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them.'
+        )
 
         if kwargs.get('homogeneous_axis') is not None:
             kwargs['heterogeneous_axis'] = None
@@ -550,9 +550,9 @@ class QuantizerConfigScope:
             for _place in place:
                 assert (_q_type, _place) in default_configs, f'Default config for ({_q_type}, {_place}) not found.'
 
-        assert (
-            kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None
-        ), 'homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them.'
+        assert kwargs.get('homogeneous_axis') is None or kwargs.get('heterogeneous_axis') is None, (
+            'homogeneous_axis and heterogeneous_axis are mutually exclusive. Set only one of them.'
+        )
 
         if kwargs.get('homogeneous_axis') is not None:
             kwargs['heterogeneous_axis'] = None

@@ -44,9 +44,9 @@ class Dataset(PyDataset):
                     assert len(y_set) == self.data_len, 'Output tensor must have the same length as input tensor'
                 else:
                     self.y = tuple(to_tensor(y) for y in y_set)
-                    assert all(
-                        len(y) == self.data_len for y in y_set
-                    ), 'All output tensors must have the same length as input tensor'
+                    assert all(len(y) == self.data_len for y in y_set), (
+                        'All output tensors must have the same length as input tensor'
+                    )
             else:
                 self.y = None
 
