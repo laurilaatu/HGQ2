@@ -15,10 +15,10 @@ from .base import TrainableQuantizerBase, numbers
 def minimal_i_given_xb(x, b, symmetric=False):
     eps = epsilon()
     if symmetric:
-        return ops.ceil(ops.log2(ops.abs(x) / (2**-b + eps) + eps))
-    i_pos = ops.ceil(ops.log2(x / (1 - 2**-b + eps) + eps))
+        return ops.ceil(ops.log2((x + eps) / (1 - 2.0**-b + eps)))
+    i_pos = ops.ceil(ops.log2((x + eps) / (1 - 2.0**-b + eps)))
     i_neg = ops.ceil(ops.log2(-x - eps))
-    return ops.where(b > 0, ops.where(x >= 0, i_pos, i_neg), 0)
+    return ops.where(b > 0, ops.where(x >= 0, i_pos, i_neg), 32)
 
 
 def minimal_i_given_xf(x, f, symmetric=False):
@@ -279,8 +279,7 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
                     new_k = self.get_any_k(rinputs)
                     new_k = ops.cast(ops.cast(self.k, 'bool') | new_k, self._k.dtype)  # type: ignore
                     self._k.assign(new_k)
-                    mask = (self.b == 0) & (new_k == 0)  # type: ignore
-                    self._i.assign(ops.where(mask, 0, new_i))
+                    self._i.assign(new_i)
                     return rinputs
 
             if self._is_weight:
@@ -400,15 +399,8 @@ class FixedPointQuantizerKIF(FixedPointQuantizerBase):
                     new_i = ops.stop_gradient(ops.maximum(self.i, _new_i))  # type: ignore
                     new_k = self.get_any_k(rinputs)
                     new_k = ops.cast(ops.cast(self.k, 'bool') | new_k, self._k.dtype)  # type: ignore
-                    new_f = self.f
-
-                    mask = (new_i + new_f == 0) & (new_k == 0)  # type: ignore
-                    new_i = ops.where(mask, 0, new_i)
-                    new_f = ops.where(mask, 0, new_f)
-
                     self._k.assign(new_k)
                     self._i.assign(new_i)
-                    self._f.assign(new_f)
 
                 return rinputs
 
