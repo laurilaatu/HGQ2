@@ -131,7 +131,10 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
         k = self.bw_mapper.bw_to_x(k, ops.shape(inputs))
         i = self.bw_mapper.bw_to_x(i, ops.shape(inputs))
         f = self.bw_mapper.bw_to_x(f, ops.shape(inputs))
-        return self.stateless_quantizer(inputs, k, i, f, training is True, self.seed_gen)
+        ret = self.stateless_quantizer(inputs, k, i, f, training is True, self.seed_gen)
+        if not training:
+            ret = ops.where(k + i + f > 0, ret, ops.zeros_like(ret))  # type: ignore
+        return ret
 
 
 class FixedPointQuantizerKBI(FixedPointQuantizerBase):
@@ -276,7 +279,7 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
 
                     f = self.bw_mapper.bw_to_x(self.b - new_i, ops.shape(inputs))  # type: ignore
                     rinputs = self.stateless_quantizer.round(inputs, f, stochastic, self.seed_gen)
-                    new_k = self.get_any_k(rinputs)
+                    new_k = self.get_any_k(rinputs) & (self.b > 0)
                     new_k = ops.cast(ops.cast(self.k, 'bool') | new_k, self._k.dtype)  # type: ignore
                     self._k.assign(new_k)
                     self._i.assign(new_i)
@@ -284,7 +287,8 @@ class FixedPointQuantizerKBI(FixedPointQuantizerBase):
 
             if self._is_weight:
                 f = self.bw_mapper.bw_to_x(self.f, ops.shape(inputs))
-                return self.stateless_quantizer.round(inputs, f, stochastic, self.seed_gen)
+                if self.stateless_quantizer.round_mode == 'RND':
+                    return self.stateless_quantizer.round(inputs, f, False, self.seed_gen)
 
         return super().call(inputs, training is True)
 
