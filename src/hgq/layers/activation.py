@@ -1,7 +1,7 @@
 from collections.abc import Callable
 
 from keras import ops
-from keras.api.layers import Activation
+from keras.layers import Activation
 from keras.src import backend
 
 from ..quantizer import QuantizerConfig

@@ -1,6 +1,5 @@
-from keras import ops
-from keras.api import Model
-from keras.api.callbacks import Callback
+from keras import Model, ops
+from keras.callbacks import Callback
 
 from ...layers import QLayerBase
 

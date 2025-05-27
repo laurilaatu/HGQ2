@@ -2,7 +2,7 @@ from collections.abc import Sequence
 
 import keras
 from keras import ops
-from keras.api.utils import PyDataset
+from keras.utils import PyDataset
 from numpy.typing import ArrayLike
 from tqdm import tqdm
 

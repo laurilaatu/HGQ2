@@ -1,8 +1,8 @@
 import keras
 from keras import ops
-from keras.api.constraints import Constraint
-from keras.api.initializers import Constant, Initializer
-from keras.api.regularizers import Regularizer
+from keras.constraints import Constraint
+from keras.initializers import Constant, Initializer
+from keras.regularizers import Regularizer
 from keras.src import backend
 from keras.src.backend.config import epsilon
 from quantizers.fixed_point._fixed_point_ops import _get_fixed_quantizer as get_fixed_quantizer

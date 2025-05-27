@@ -1,6 +1,6 @@
-from keras.api import ops
-from keras.api.constraints import Constraint
-from keras.api.saving import register_keras_serializable
+from keras import ops
+from keras.constraints import Constraint
+from keras.saving import register_keras_serializable
 from keras.src import backend
 
 from ..utils.misc import numbers

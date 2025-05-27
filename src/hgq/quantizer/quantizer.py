@@ -1,8 +1,8 @@
 from typing import overload
 
 from keras import ops
-from keras.api.layers import Layer
-from keras.api.saving import deserialize_keras_object
+from keras.layers import Layer
+from keras.saving import deserialize_keras_object
 
 from .config import QuantizerConfig, all_quantizer_keys
 

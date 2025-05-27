@@ -1,4 +1,4 @@
-from keras.api.layers import BatchNormalization
+from keras.layers import BatchNormalization
 from keras.src import backend, ops
 from keras.src.backend import standardize_dtype
 

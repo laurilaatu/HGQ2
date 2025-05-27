@@ -1,5 +1,5 @@
 from keras import ops
-from keras.api.initializers import Initializer
+from keras.initializers import Initializer
 
 from hgq.quantizer import Quantizer
 

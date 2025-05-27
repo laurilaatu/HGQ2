@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 from keras import ops
-from keras.api.initializers import RandomNormal, RandomUniform
+from keras.initializers import RandomNormal, RandomUniform
 
 from hgq.config import QuantizerConfigScope
 from hgq.layers import QBatchNormalization

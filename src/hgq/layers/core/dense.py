@@ -1,7 +1,7 @@
 from math import prod
 
 from keras import constraints, initializers, ops, regularizers
-from keras.api.layers import Dense
+from keras.layers import Dense
 
 from ...quantizer import Quantizer
 from ...quantizer.config import QuantizerConfig

@@ -6,7 +6,7 @@ from functools import wraps
 import keras
 import numpy as np
 from keras import ops
-from keras.api.saving import register_keras_serializable
+from keras.saving import register_keras_serializable
 from quantizers import get_fixed_quantizer
 
 from hgq.config import QuantizerConfig

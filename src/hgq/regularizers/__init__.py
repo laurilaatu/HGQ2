@@ -1,6 +1,6 @@
 from keras import ops
-from keras.api.regularizers import Regularizer
-from keras.api.saving import register_keras_serializable
+from keras.regularizers import Regularizer
+from keras.saving import register_keras_serializable
 
 from ..utils.misc import numbers
 

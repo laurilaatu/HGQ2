@@ -2,8 +2,8 @@ from collections.abc import Callable, Sequence
 
 import numpy as np
 from keras import ops
-from keras.api.callbacks import Callback
-from keras.api.models import Model
+from keras.callbacks import Callback
+from keras.models import Model
 
 
 class BetaScheduler(Callback):

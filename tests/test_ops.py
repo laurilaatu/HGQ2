@@ -2,8 +2,7 @@ from math import log2, prod
 
 import numpy as np
 import pytest
-from keras import ops
-from keras.api import layers
+from keras import layers, ops
 
 from hgq.config import QuantizerConfigScope
 from hgq.layers import QLayerBase

@@ -1,7 +1,7 @@
 from math import log2
 
 from keras import ops
-from keras.api.layers import Add, Average, Dot, Maximum, Minimum, Multiply, Subtract
+from keras.layers import Add, Average, Dot, Maximum, Minimum, Multiply, Subtract
 from keras.src.layers.merging.base_merge import Merge
 
 from ...utils.misc import warn_no_synth

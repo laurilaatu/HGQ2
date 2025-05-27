@@ -5,9 +5,9 @@ from functools import wraps
 
 import numpy as np
 from keras import ops
-from keras.api.initializers import Constant, Initializer
-from keras.api.layers import Layer
-from keras.api.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
+from keras.initializers import Constant, Initializer
+from keras.layers import Layer
+from keras.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
 
 from ...config.layer import global_config
 from ...quantizer import Quantizer, QuantizerConfig

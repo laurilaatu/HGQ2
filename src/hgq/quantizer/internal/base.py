@@ -2,7 +2,7 @@ from collections.abc import Sequence
 
 import numpy as np
 from keras import ops
-from keras.api.saving import register_keras_serializable
+from keras.saving import register_keras_serializable
 from keras.src import backend
 from keras.src.layers import Layer
 

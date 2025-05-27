@@ -1,5 +1,5 @@
 from keras import ops
-from keras.api.layers import EinsumDense
+from keras.layers import EinsumDense
 
 from ...quantizer import Quantizer
 from ...quantizer.config import QuantizerConfig

@@ -1,6 +1,6 @@
-from keras.api import backend, initializers, ops
-from keras.api.constraints import Constraint
-from keras.api.regularizers import Regularizer
+from keras import backend, initializers, ops
+from keras.constraints import Constraint
+from keras.regularizers import Regularizer
 
 from hgq.constraints import MinMax
 from hgq.quantizer.internal import FixedPointQuantizerKBI, numbers

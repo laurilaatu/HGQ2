@@ -1,6 +1,6 @@
 from typing import TypedDict, overload
 
-from keras.api.initializers import Initializer
+from keras.initializers import Initializer
 
 
 class GlobalConfig(TypedDict):

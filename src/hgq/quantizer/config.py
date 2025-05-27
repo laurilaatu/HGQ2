@@ -1,10 +1,10 @@
 from collections.abc import Mapping, Sequence
 from typing import TypedDict, overload
 
-from keras.api.constraints import Constraint
-from keras.api.initializers import Initializer
-from keras.api.regularizers import Regularizer
-from keras.api.saving import deserialize_keras_object, register_keras_serializable
+from keras.constraints import Constraint
+from keras.initializers import Initializer
+from keras.regularizers import Regularizer
+from keras.saving import deserialize_keras_object, register_keras_serializable
 
 from ..constraints import Min, MinMax
 from ..regularizers import MonoL1

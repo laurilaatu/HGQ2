@@ -1,5 +1,5 @@
-from keras.api import ops
-from keras.api.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
+from keras import ops
+from keras.saving import deserialize_keras_object, register_keras_serializable, serialize_keras_object
 from keras.src.layers.input_spec import InputSpec
 from keras.src.layers.rnn.simple_rnn import RNN, SimpleRNN, SimpleRNNCell
 

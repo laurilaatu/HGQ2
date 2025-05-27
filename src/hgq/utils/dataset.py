@@ -3,7 +3,7 @@ from warnings import warn
 
 import keras
 from keras import ops
-from keras.api.utils import PyDataset
+from keras.utils import PyDataset
 
 
 class Dataset(PyDataset):

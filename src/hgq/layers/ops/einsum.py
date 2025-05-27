@@ -1,4 +1,4 @@
-from keras.api import ops
+from keras import ops
 
 from ..core import QLayerBaseMultiInputs
 
