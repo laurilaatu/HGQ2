@@ -68,7 +68,7 @@ class BetaPID(Callback):
     def update_beta(self) -> float:
         current_value: float = self.get_model_ebops()
 
-        error: float = self.target_ebops / self.init_ebops - current_value / self.init_ebops
+        error: float = 1 - self.current_value / self.target_ebops
         self.integral += error
         derivative: float = error - self.prev_error
 
