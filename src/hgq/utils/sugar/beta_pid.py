@@ -1,99 +1,167 @@
+from math import log10
+
 from keras import ops
 from keras.callbacks import Callback
 from keras.models import Model
 
 
-class BetaPID(Callback):
-    """
-    Control the beta value of the Q-Layers with a PID controller.
+class PID:
+    def __init__(self, p: float, i: float, d: float, neg: bool):
+        self.p = p
+        self.i = i
+        self.d = d
+        self.integral = 0.0
+        self.prev_error = 0.0
+        self.neg = neg
 
-    Parameters
-    ----------
-    p : float
-        Proportional gain.
-    i : float
-        Integral gain.
-    d : float
-        Derivative gain.
-    target_ebops : float
-        Target EBOPs to reach.
-    warmup : int, optional
-        Number of epochs to wait before starting to adjust beta. Default is 10.
-    init_beta : float, optional
-        Initial beta value. Default is 1e-10.
-    max_beta : float, optional
-        Maximum beta value to allow. Default is 1e-6.
-    damp_beta_on_target : float, optional
-        If set and the model EBOPs fall below the target EBOPs, the current beta
-        will be multiplied by this value. For example, 0.1 will reduce beta by 90%.
-        Useful for fine-tuning once the target is reached. If None, no damping is applied.
-    """
+    def update_gains(self, p: float, i: float, d: float):
+        self.p = p
+        self.i = i
+        self.d = d
 
-    def __init__(
-        self,
-        p: float,
-        i: float,
-        d: float,
-        target_ebops: float,
-        warmup: int = 10,
-        init_beta: float = 1e-10,
-        max_beta: float = 1e-6,
-        damp_beta_on_target: float | None = None,
-    ) -> None:
-        self._beta: float = init_beta
-        self.warmup: int = warmup
-        self.p: float = p
-        self.i: float = i
-        self.d: float = d
-        self.target_ebops: float = target_ebops
-        self.max_beta: float = max_beta
+    def update_gains_KcTiTd(self, Kp: float, Ti: float, Td: float):
+        self.p = Kp
+        self.i = Kp / Ti
+        self.d = Kp * Td
 
-        self.init_ebops: float | None = None
-        self.damp_beta_on_target: float | None = damp_beta_on_target
+    def __call__(self, sv: float, pv: float) -> float:
+        err = sv - pv if not self.neg else pv - sv
+        self.integral += err
+        derivative = err - self.prev_error
+        self.prev_error = err
+        return self.p * err + self.i * self.integral + self.d * derivative
 
-        self.integral: float = 0.0
-        self.prev_error: float = 0.0
 
-    def get_model_ebops(self) -> float:
+class BaseBetaPID(Callback):
+    def __init__(self, target_ebops: float, p: float, i: float, d: float = 0.0) -> None:
+        assert target_ebops > 0, 'Target EBOPs must be greater than 0.'
+        self.pid = PID(p, i, d, neg=True)
+        self.target_ebops = target_ebops
+
+    def get_ebops(self):
         assert isinstance(self.model, Model)
         ebops: float = 0.0
         for layer in self.model.layers:
             if hasattr(layer, 'ebops'):
-                ebops += layer.ebops
+                ebops += float(layer.ebops)
         return ebops
 
-    def update_beta(self) -> float:
-        current_value: float = self.get_model_ebops()
+    def set_beta(self, beta: float):
+        assert isinstance(self.model, Model)
+        for layer in self.model._flatten_layers():
+            if hasattr(layer, '_beta'):
+                layer._beta.assign(ops.convert_to_tensor(beta, dtype=layer._beta.dtype))
 
-        error: float = 1 - current_value / self.target_ebops
-        self.integral += error
-        derivative: float = error - self.prev_error
+    def on_epoch_begin(self, epoch, logs: dict | None = None):
+        assert isinstance(logs, dict)
+        ebops = self.get_ebops()
+        beta = self.pid(self.target_ebops, ebops)
+        beta = max(beta, 0.0)
+        self.set_beta(beta)
+        logs['beta'] = beta
+        logs['ebops'] = ebops
 
-        pid_out: float = self.p * error + self.i * self.integral + self.d * derivative
-        self.prev_error = error
 
-        return -pid_out
+class BetaPID(BaseBetaPID):
+    """
+    Control the beta value of the Q Layers using a PID controller to reach a specified target EBOPs.
+
+    Parameters
+    ----------
+    target_ebops : float
+        The target EBOPs to reach.
+    init_beta : float, optional
+        The initial beta value to set before training starts. If None, the average beta of the model is used.
+        If initial beta is set, it will be applied to the model at the beginning of training.
+    p : float, default 1.0
+        The proportional gain of the PID controller.
+    i : float, default 2e-3
+        The integral gain of the PID controller.
+    d : float, default 0.0
+        The derivative gain of the PID controller. As EBOPs is noisy, it is recommended to set this to 0.0 or a very small value.
+    warmup : int, default 10
+        The number of epochs to warm up the beta value. During this period, the beta value will not be updated.
+    log : bool, default True
+        If True, the beta value and error in EBOPs will be processed in logarithmic scale.
+    max_beta : float, default float('inf')
+        The maximum beta value to set. If the computed beta exceeds this value, it will be clamped to this maximum.
+    min_beta : float, default 0.0
+        The minimum beta value to set. If the computed beta is below this value, it will be clamped to this minimum.
+    damp_beta_on_target : float, default 0.0
+        A damping factor applied to the beta value when the target EBOPs is reached: beta *= (1 - damp_beta_on_target).
+        This can help mitigating beta overshooting.
+    """
+
+    def __init__(
+        self,
+        target_ebops: float,
+        init_beta: float | None = None,
+        p: float = 1.0,
+        i: float = 2e-3,
+        d: float = 0.0,
+        warmup: int = 10,
+        log: bool = True,
+        max_beta: float = float('inf'),
+        min_beta: float = 0.0,
+        damp_beta_on_target: float = 0.0,
+    ) -> None:
+        super().__init__(target_ebops, p, i, d)
+        self.warmup = warmup
+        self.init_beta = init_beta
+        self.max_beta = max_beta
+        self.min_beta = min_beta
+        self.damp_beta_on_target = damp_beta_on_target
+        self.log = log
+
+    def get_avg_beta(self) -> float:
+        assert isinstance(self.model, Model)
+        n, c = 0, 0.0
+        for layer in self.model._flatten_layers():
+            if hasattr(layer, '_beta'):
+                c += float(layer._beta.numpy())
+                n += 1
+        return c / n if n > 0 else 0.0
+
+    def on_train_begin(self, logs=None):
+        if self.init_beta is not None:
+            self.set_beta(self.init_beta)
+        self.beta = self.get_avg_beta() if self.init_beta is None else self.init_beta
+        self._ebops = self.get_ebops()
 
     def on_epoch_begin(self, epoch: int, logs: dict | None = None) -> None:
-        if epoch == 1:
-            if self.init_ebops is None:
-                self.init_ebops = float(self.get_model_ebops())
-
-        if epoch > self.warmup:
-            new_beta: float = float(self.update_beta())
-
-            self._beta = max(0.0, new_beta)
-            self._beta = min(self._beta, self.max_beta)
-
-            if self.damp_beta_on_target is not None and self.get_model_ebops() < self.target_ebops:
-                self._beta *= self.damp_beta_on_target
-
-            assert isinstance(self.model, Model)
-
-            for layer in self.model._flatten_layers():
-                if hasattr(layer, '_beta'):
-                    layer._beta.assign(ops.convert_to_tensor(self._beta, dtype=layer._beta.dtype))
-
-    def on_epoch_end(self, epoch: int, logs: dict | None = None) -> None:
         assert isinstance(logs, dict)
-        logs['beta'] = self._beta
+
+        if epoch < self.warmup:
+            if self.init_beta is not None:
+                self.set_beta(self.init_beta)
+            return
+
+        ebops = self._ebops
+        if epoch == self.warmup:
+            # match integral term ST init beta = beta for the first epoch
+            # beta = p * P + i * I
+            if not self.log:
+                err = 1 - ebops / self.target_ebops
+                self.pid.integral = (self.beta - self.pid.p * err) / self.pid.i - err
+            else:
+                err = log10(ebops / self.target_ebops + 1e-9)
+                self.pid.integral = (log10(self.beta) - self.pid.p * err) / self.pid.i - err
+
+        if self.log:
+            beta = 10.0 ** self.pid(0, log10(ebops / self.target_ebops))
+        else:
+            beta = self.pid(1, ebops / self.target_ebops)
+
+        if ebops < self.target_ebops:
+            beta *= 1 - self.damp_beta_on_target
+
+        beta = max(min(beta, self.max_beta), self.min_beta)
+        self.set_beta(beta)
+        self.beta = beta
+
+    def on_epoch_end(self, epoch: int, logs: dict | None = None):
+        assert isinstance(logs, dict)
+        logs['beta'] = self.beta
+        ebops = self.get_ebops()
+        logs['ebops'] = ebops
+        self._ebops = ebops
