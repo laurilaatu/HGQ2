@@ -21,7 +21,7 @@ def gather_vars_to_kwargs(skip_pattern=None) -> dict[str, Any]:
     dict[str, Any]
         A dictionary containing all local variables in the calling function, except for those that start and end with double underscores.
     """
-    vars = inspect.getouterframes(inspect.currentframe(), 2)[1][0].f_locals
+    vars = dict(inspect.getouterframes(inspect.currentframe(), 2)[1][0].f_locals)
     kwarg = vars.pop('kwargs', {})
     if skip_pattern:
         m = re.compile(skip_pattern)
