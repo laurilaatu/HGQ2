@@ -12,8 +12,10 @@ from .dataset import Dataset
 def _reset_minmax(layer: keras.Layer):
     if hasattr(layer, '_i_decay_speed'):
         # WRAP-like overflow mode
-        layer._i.assign(keras.ops.full_like(layer._i, -1e9))
-        layer._k.assign(keras.ops.zeros_like(layer._k))
+        shape, dtype = layer._i.shape, layer._i.dtype
+        layer._i.assign(keras.ops.full(shape, 1e-9, dtype=dtype))
+        shape, dtype = layer._k.shape, layer._k.dtype
+        layer._k.assign(keras.ops.zeros(shape, dtype=dtype))
     for sublayer in layer._layers:
         _reset_minmax(sublayer)
 
