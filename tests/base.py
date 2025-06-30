@@ -220,7 +220,7 @@ class LayerTestBase:
         initial_weights_np = [w.numpy() for w in model.trainable_variables]
 
         opt = keras.optimizers.Lion(learning_rate=1.0)
-        loss = keras.losses.MeanSquaredError()
+        loss = keras.losses.MeanAbsoluteError()
         model(input_data, training=True)  # Adapt init bitwidth
 
         data_len = len(input_data[0]) if isinstance(input_data, Sequence) else len(input_data)
