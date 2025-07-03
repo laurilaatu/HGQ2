@@ -77,6 +77,8 @@ filterwarnings = [
   "ignore:Deprecated call to `pkg_resources.declare_namespace:DeprecationWarning",
   "ignore:in the future the `.dtype` attribute of a given datatype object must be a valid dtype instance.:DeprecationWarning",
   "ignore:Skipping variable loading for optimizer 'adam':UserWarning",
+  "ignore:The structure of `inputs` doesn't match the expected structure.:UserWarning",
+  "ignore: __array__ implementation doesn't accept a copy keyword:DeprecationWarning",
 ]
 
 env = [

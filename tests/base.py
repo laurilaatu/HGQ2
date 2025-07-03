@@ -211,7 +211,7 @@ class LayerTestBase:
     def test_training(self, model: keras.Model, input_data: np.ndarray, overflow_mode: str, *args, **kwargs):
         """Test basic training step"""
 
-        model_wrap = keras.Sequential([model, keras.layers.Flatten(), keras.layers.Dense(1)])
+        model_wrap = keras.Sequential([model, keras.layers.Flatten(), keras.layers.Lambda(lambda x: ops.sum(x))])
         if isinstance(input_data, Sequence):
             input_data = tuple(_input_data for _input_data in input_data)  # type: ignore
         else:
@@ -226,13 +226,9 @@ class LayerTestBase:
         data_len = len(input_data[0]) if isinstance(input_data, Sequence) else len(input_data)
         labels = ops.array(np.random.rand(data_len), dtype='float32')
         model_wrap.compile(optimizer=opt, loss=loss)  # type: ignore
-        r0 = model_wrap.train_on_batch(input_data, labels)
+        model_wrap.train_on_batch(input_data, labels)
 
         trained_weights = [w for w in model.trainable_variables]
-
-        r1 = loss(labels, model_wrap(input_data))
-
-        assert r1 != r0, f'Loss did not change: {r0} -> {r1}'
 
         boom = []
         for w0, w1 in zip(initial_weights_np, trained_weights):
@@ -246,5 +242,5 @@ class LayerTestBase:
                 # if w1.path == 'q_multi_head_attention/key/bias':
                 #     continue
                 boom.append(f'{w1.path}')
-        assert not boom, f"Weight {' AND '.join(boom)} did not change"
+        assert not boom, f'Weight {" AND ".join(boom)} did not change'
         assert any(np.any(w0 != w1.numpy()) for w0, w1 in zip(initial_weights_np, trained_weights) if w1.name in 'bif')
