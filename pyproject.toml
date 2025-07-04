@@ -26,7 +26,7 @@ classifiers = [
 dependencies = [ "keras>=3.10", "quantizers>=1.2.2", "tqdm" ]
 optional-dependencies.docs = [ "myst-parser", "pyparsing", "sphinx", "sphinx-rtd-theme" ]
 optional-dependencies.test = [
-  "hls4ml @ git+https://github.com/calad0i/hls4ml.git@da4ml-v3",
+  "hls4ml @ git+https://github.com/fastmachinelearning/hls4ml.git@main",
   "jax>=0.4.20",
   "jaxlib>=0.4.20",
   "keras>=3",
