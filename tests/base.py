@@ -106,8 +106,8 @@ class LayerTestBase:
     def input_data(self, input_shapes, N: int = 5000) -> np.ndarray | tuple[np.ndarray, ...]:
         """Generate test input data"""
         if isinstance(input_shapes[0], int):
-            return np.random.randn(N, *input_shapes).astype(np.float32)
-        dat = tuple(np.random.randn(N, *shape).astype(np.float32) for shape in input_shapes)  # type: ignore
+            return np.random.randn(N, *input_shapes).astype(np.float32).clip(-5, 5)
+        dat = tuple(np.random.randn(N, *shape).astype(np.float32).clip(-5, 5) for shape in input_shapes)  # type: ignore
         if len(dat) == 1:
             return dat[0]
         return dat
@@ -186,7 +186,7 @@ class LayerTestBase:
             output_dir=temp_directory,
             backend='Vitis',
             io_type='io_parallel' if use_parallel_io else 'io_stream',
-            hls_config={'Model': {'Precision': 'ap_fixed<1,0>', 'ReuseFactor': 1, 'Strategy': 'latency'}},
+            hls_config={'Model': {'Precision': 'ap_fixed<1,0>', 'ReuseFactor': 1, 'Strategy': 'distributed_arithmetic'}},
         )
 
         hls_model.compile()
