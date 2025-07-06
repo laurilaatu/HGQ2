@@ -87,8 +87,11 @@ class QLayerMeta(ABCMeta):
 
                 @wraps(original_call)
                 def call(self, *args, **kwargs):
+                    if has_training:  # remove training flag if the original does not have it
+                        training = kwargs.get('training', None)
+                    else:
+                        training = kwargs.pop('training', None)
                     r = original_call(self, *args, **kwargs)
-                    training = kwargs.get('training', None)
                     if training or training == 'tracing' and self.enable_ebops:  # noqa: E712, training may be a special wrapper object
                         if isinstance(args[0], (tuple, list)):
                             tensors = args[0]
