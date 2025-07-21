@@ -297,7 +297,7 @@ class QuantizerConfig(Mapping):
         i0: numbers | Initializer = 4,
         f0: numbers | Initializer = 2,
         round_mode: str = 'RND',
-        overflow_mode: str = 'SAT',
+        overflow_mode: str = 'WRAP',
         ic: Constraint | None = MinMax(-12, 12),
         ir: Regularizer | None = None,
         fc: Constraint | None = MinMax(-10, 10),

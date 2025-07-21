@@ -90,7 +90,10 @@ class FixedPointQuantizerBase(TrainableQuantizerBase):
 
     @property
     def bits(self):
-        return self.b
+        if self.overflow_mode != 'SAT':
+            return self.b
+        else:
+            return self.b + self.k
 
     @property
     def min(self):
