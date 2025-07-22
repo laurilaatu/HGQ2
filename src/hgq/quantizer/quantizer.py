@@ -53,10 +53,6 @@ class Quantizer(Layer):
             outputs = outputs * self.scaler  # type: ignore
         if self.qnoise_factor is not None:
             outputs = inputs + self.qnoise_factor * (outputs - inputs)  # type: ignore
-        if not training and not self.quantizer.__dummy__:
-            # Prevent numerical stability issues...
-            # 0-bit quant can sometimes go to 1e-32 numbers on gpu...
-            outputs = ops.where(self.bits > 0, outputs, 0)
         return outputs
 
     def get_config(self):
