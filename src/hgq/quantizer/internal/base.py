@@ -71,6 +71,8 @@ def check_axis(axis: Sequence[int], ndim: int):
 class TrainableQuantizerBase(Layer):
     """Abstract base class for all quantizers."""
 
+    __dummy__ = False
+
     def __init__(self, **kwargs):
         homogeneous_axis = kwargs.pop('homogeneous_axis', ())
         heterogeneous_axis = kwargs.pop('heterogeneous_axis', None)
@@ -110,6 +112,8 @@ class TrainableQuantizerBase(Layer):
 
 
 class DummyQuantizer(TrainableQuantizerBase):
+    __dummy__ = True
+
     def call(self, inputs, training=None):
         return inputs
 
