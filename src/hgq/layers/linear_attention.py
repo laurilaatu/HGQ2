@@ -20,11 +20,12 @@ import keras
 from keras import ops
 from keras.layers import EinsumDense, Dropout
 
-class LinearMultiheadAttention(keras.layers.Layer):
-    """
-    Linformer Attention as a near drop-in replacement for `keras.layers.MultiHeadAttention`.
-    """
 
+
+class LinearAttention(keras.layers.Layer):
+    """
+    Linformer Attention
+    """
     def __init__(
         self,
         num_heads,
@@ -34,6 +35,13 @@ class LinearMultiheadAttention(keras.layers.Layer):
         dropout=0.0,
         use_bias=True,
         param_sharing='none',
+        kernel_initializer="glorot_uniform",
+        bias_initializer="zeros",
+        kernel_regularizer=None,
+        bias_regularizer=None,
+        activity_regularizer=None,
+        kernel_constraint=None,
+        bias_constraint=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -45,6 +53,15 @@ class LinearMultiheadAttention(keras.layers.Layer):
         self.use_bias = use_bias
         self.param_sharing = param_sharing
         self.supports_masking = False
+        
+        # Store initializer and regularizer configurations
+        self.kernel_initializer = initializers.get(kernel_initializer)
+        self.bias_initializer = initializers.get(bias_initializer)
+        self.kernel_regularizer = regularizers.get(kernel_regularizer)
+        self.bias_regularizer = regularizers.get(bias_regularizer)
+        self.activity_regularizer = regularizers.get(activity_regularizer)
+        self.kernel_constraint = constraints.get(kernel_constraint)
+        self.bias_constraint = constraints.get(bias_constraint)
 
         self.embed_dim = self.key_dim * self.num_heads
         self.scaling = float(self.key_dim)**-0.5
@@ -52,24 +69,34 @@ class LinearMultiheadAttention(keras.layers.Layer):
     def build(self, query_shape, value_shape, key_shape=None):
         key_shape = value_shape if key_shape is None else key_shape
 
+        # Create a common dictionary of arguments to pass to all sublayers
+        common_kwargs = dict(
+            kernel_initializer=self.kernel_initializer,
+            bias_initializer=self.bias_initializer,
+            kernel_regularizer=self.kernel_regularizer,
+            bias_regularizer=self.bias_regularizer,
+            activity_regularizer=self.activity_regularizer,
+            kernel_constraint=self.kernel_constraint,
+            bias_constraint=self.bias_constraint,
+        )
+
         qkv_equation = "bsd,de->bse"
-        self._query_dense = EinsumDense(qkv_equation, output_shape=(None, self.embed_dim), bias_axes="e" if self.use_bias else None, name="query")
-        self._key_dense = EinsumDense(qkv_equation, output_shape=(None, self.embed_dim), bias_axes="e" if self.use_bias else None, name="key")
-        self._value_dense = EinsumDense(qkv_equation, output_shape=(None, self.value_dim * self.num_heads), bias_axes="e" if self.use_bias else None, name="value")
-        self._output_dense = EinsumDense(qkv_equation, output_shape=(None, self.embed_dim), bias_axes="e" if self.use_bias else None, name="output")
+        self._query_dense = EinsumDense(qkv_equation, output_shape=(None, self.embed_dim), bias_axes="e" if self.use_bias else None, name="query", **common_kwargs)
+        self._key_dense = EinsumDense(qkv_equation, output_shape=(None, self.embed_dim), bias_axes="e" if self.use_bias else None, name="key", **common_kwargs)
+        self._value_dense = EinsumDense(qkv_equation, output_shape=(None, self.value_dim * self.num_heads), bias_axes="e" if self.use_bias else None, name="value", **common_kwargs)
+        self._output_dense = EinsumDense(qkv_equation, output_shape=(None, self.embed_dim), bias_axes="e" if self.use_bias else None, name="output", **common_kwargs)
 
         linformer_equation = "bes,sk->bek"
-        self._e_proj = EinsumDense(linformer_equation, output_shape=(self.embed_dim, self.proj_k), bias_axes="k" if self.use_bias else None, name='e_projection')
+        self._e_proj = EinsumDense(linformer_equation, output_shape=(self.embed_dim, self.proj_k), bias_axes="k" if self.use_bias else None, name='e_projection', **common_kwargs)
         if self.param_sharing == 'layerwise':
             self._f_proj = self._e_proj
         else:
-            self._f_proj = EinsumDense(linformer_equation, output_shape=(self.value_dim * self.num_heads, self.proj_k), bias_axes="k" if self.use_bias else None, name='f_projection')
+            self._f_proj = EinsumDense(linformer_equation, output_shape=(self.value_dim * self.num_heads, self.proj_k), bias_axes="k" if self.use_bias else None, name='f_projection', **common_kwargs)
 
         if self.dropout > 0.0:
             self._dropout_layer = Dropout(self.dropout)
             
         self.built = True
-
 
     def _project_sequence(self, x, proj_layer):
         x_T = ops.transpose(x, axes=[0, 2, 1])
@@ -131,14 +158,22 @@ class LinearMultiheadAttention(keras.layers.Layer):
             "value_dim": self.value_dim,
             "dropout": self.dropout,
             "use_bias": self.use_bias,
-            "param_sharing": self.param_sharing
+            "param_sharing": self.param_sharing,
+            "kernel_initializer": initializers.serialize(self.kernel_initializer),
+            "bias_initializer": initializers.serialize(self.bias_initializer),
+            "kernel_regularizer": regularizers.serialize(self.kernel_regularizer),
+            "bias_regularizer": regularizers.serialize(self.bias_regularizer),
+            "activity_regularizer": regularizers.serialize(self.activity_regularizer),
+            "kernel_constraint": constraints.serialize(self.kernel_constraint),
+            "bias_constraint": constraints.serialize(self.bias_constraint),
         })
         return config
 
 
 
 
-class QLinearMultiheadAttention(LinearMultiheadAttention, QLayerBase):
+
+class QLinearAttention(LinearAttention, QLayerBase):
     __output_quantizer_handled__ = True
 
     def __init__(
@@ -159,27 +194,27 @@ class QLinearMultiheadAttention(LinearMultiheadAttention, QLayerBase):
         bias_constraint=None,
         seed=None,
         fuse: Literal['none', 'qkv', 'kv'] = 'none',
-        qkvo_iq_conf: QuantizerConfig | None = None,
-        qkvo_kq_conf: QuantizerConfig | None = None,
-        qkvo_bq_conf: QuantizerConfig | None = None,
-        qkvo_oq_conf: QuantizerConfig | None = None,
-        ef_iq_conf: QuantizerConfig | None = None,
-        ef_kq_conf: QuantizerConfig | None = None,
-        ef_bq_conf: QuantizerConfig | None = None,
-        ef_oq_conf: QuantizerConfig | None = None,
-        softmax_iq_conf: QuantizerConfig | None = None,
-        softmax_exp_iq_conf: QuantizerConfig | None = None,
-        softmax_exp_oq_conf: QuantizerConfig | None = None,
-        softmax_inv_iq_conf: QuantizerConfig | None = None,
-        softmax_inv_oq_conf: QuantizerConfig | None = None,
-        softmax_oq_conf: QuantizerConfig | None = None,
-        stable_softmax=True,
-        softmax_allow_heterogeneous_table: bool = False,
+        qkvo_iq_conf: QuantizerConfig | None = None, qkvo_kq_conf: QuantizerConfig | None = None,
+        qkvo_bq_conf: QuantizerConfig | None = None, qkvo_oq_conf: QuantizerConfig | None = None,
+        ef_iq_conf: QuantizerConfig | None = None, ef_kq_conf: QuantizerConfig | None = None,
+        ef_bq_conf: QuantizerConfig | None = None, ef_oq_conf: QuantizerConfig | None = None,
+        softmax_iq_conf: QuantizerConfig | None = None, softmax_exp_iq_conf: QuantizerConfig | None = None,
+        softmax_exp_oq_conf: QuantizerConfig | None = None, softmax_inv_iq_conf: QuantizerConfig | None = None,
+        softmax_inv_oq_conf: QuantizerConfig | None = None, softmax_oq_conf: QuantizerConfig | None = None,
+        stable_softmax=True, softmax_allow_heterogeneous_table: bool = False,
         parallelization_factor=-1,
         **kwargs,
     ):
-        
-        kwargs = gather_vars_to_kwargs('self|.+q_conf')
+        super().__init__(
+            num_heads=num_heads, key_dim=key_dim, proj_k=proj_k,
+            value_dim=value_dim, dropout=dropout, use_bias=use_bias,
+            param_sharing=param_sharing, kernel_initializer=kernel_initializer,
+            bias_initializer=bias_initializer, kernel_regularizer=kernel_regularizer,
+            bias_regularizer=bias_regularizer, activity_regularizer=activity_regularizer,
+            kernel_constraint=kernel_constraint, bias_constraint=bias_constraint,
+            seed=seed, **kwargs
+        )
+        QLayerBase.__init__(self, **kwargs)
 
         self._qkvo_iq_conf = qkvo_iq_conf or QuantizerConfig(place='datalane')
         self._qkvo_kq_conf = qkvo_kq_conf or QuantizerConfig(place='weight')
@@ -195,17 +230,13 @@ class QLinearMultiheadAttention(LinearMultiheadAttention, QLayerBase):
         self._softmax_inv_iq_conf = softmax_inv_iq_conf or QuantizerConfig(place='datalane')
         self._softmax_inv_oq_conf = softmax_inv_oq_conf or QuantizerConfig(place='table')
         self._softmax_oq_conf = softmax_oq_conf or QuantizerConfig(place='datalane')
-        self._softmax_allow_heterogeneous_table = kwargs.pop('softmax_allow_heterogeneous_table')
-        self.parallelization_factor = kwargs.pop('parallelization_factor')
-        self._stable_softmax = kwargs.pop('stable_softmax')
-        self._fuse = kwargs.pop('fuse', 'none').lower()
-
-
-        super().__init__(**kwargs)
-        QLayerBase.__init__(self, **kwargs)
-
+        self._softmax_allow_heterogeneous_table = softmax_allow_heterogeneous_table
+        self.parallelization_factor = parallelization_factor
+        self._stable_softmax = stable_softmax
+        self._fuse = fuse.lower()
 
     def _get_common_dense_kwargs(self):
+        # Helper to bundle arguments for sublayers
         return {
             "kernel_initializer": self.kernel_initializer, "bias_initializer": self.bias_initializer,
             "kernel_regularizer": self.kernel_regularizer, "bias_regularizer": self.bias_regularizer,
@@ -360,6 +391,7 @@ class QLinearMultiheadAttention(LinearMultiheadAttention, QLayerBase):
 
     def get_config(self):
         config = super().get_config()
+        # Note: The parent's get_config already serializes the initializers.
         config.update({
             'fuse': self._fuse,
             'qkvo_iq_conf': self._qkvo_iq_conf, 'kq_conf': self._qkvo_kq_conf,
