@@ -9,16 +9,10 @@ from .core.einsum_dense import QEinsumDense
 from .softmax import QSoftmax
 
 import keras
-from keras import ops
+from keras import ops, regularizers, constraints, initializers
 from keras.initializers import Constant
-from keras.layers import Dropout
+from keras.layers import Dropout, EinsumDense
 
-
-import math
-import warnings
-import keras
-from keras import ops
-from keras.layers import EinsumDense, Dropout
 
 
 
@@ -42,6 +36,7 @@ class LinearAttention(keras.layers.Layer):
         activity_regularizer=None,
         kernel_constraint=None,
         bias_constraint=None,
+        seed=None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -52,9 +47,9 @@ class LinearAttention(keras.layers.Layer):
         self.dropout = dropout
         self.use_bias = use_bias
         self.param_sharing = param_sharing
+        self.seed = seed
         self.supports_masking = False
         
-        # Store initializer and regularizer configurations
         self.kernel_initializer = initializers.get(kernel_initializer)
         self.bias_initializer = initializers.get(bias_initializer)
         self.kernel_regularizer = regularizers.get(kernel_regularizer)
@@ -69,7 +64,6 @@ class LinearAttention(keras.layers.Layer):
     def build(self, query_shape, value_shape, key_shape=None):
         key_shape = value_shape if key_shape is None else key_shape
 
-        # Create a common dictionary of arguments to pass to all sublayers
         common_kwargs = dict(
             kernel_initializer=self.kernel_initializer,
             bias_initializer=self.bias_initializer,
@@ -94,7 +88,7 @@ class LinearAttention(keras.layers.Layer):
             self._f_proj = EinsumDense(linformer_equation, output_shape=(self.value_dim * self.num_heads, self.proj_k), bias_axes="k" if self.use_bias else None, name='f_projection', **common_kwargs)
 
         if self.dropout > 0.0:
-            self._dropout_layer = Dropout(self.dropout)
+            self._dropout_layer = Dropout(self.dropout, seed=self.seed)
             
         self.built = True
 
@@ -166,6 +160,7 @@ class LinearAttention(keras.layers.Layer):
             "activity_regularizer": regularizers.serialize(self.activity_regularizer),
             "kernel_constraint": constraints.serialize(self.kernel_constraint),
             "bias_constraint": constraints.serialize(self.bias_constraint),
+            "seed": self.seed,
         })
         return config
 
@@ -236,7 +231,6 @@ class QLinearAttention(LinearAttention, QLayerBase):
         self._fuse = fuse.lower()
 
     def _get_common_dense_kwargs(self):
-        # Helper to bundle arguments for sublayers
         return {
             "kernel_initializer": self.kernel_initializer, "bias_initializer": self.bias_initializer,
             "kernel_regularizer": self.kernel_regularizer, "bias_regularizer": self.bias_regularizer,
@@ -320,7 +314,7 @@ class QLinearAttention(LinearAttention, QLayerBase):
         )
         
         if self.dropout > 0.0:
-            self._dropout_layer = Dropout(rate=self.dropout, dtype=self.dtype_policy)
+            self._dropout_layer = Dropout(rate=self.dropout, seed=self.seed, dtype=self.dtype_policy)
         
         if shapes is not None:
             query_shape, _, _ = shapes
@@ -391,7 +385,6 @@ class QLinearAttention(LinearAttention, QLayerBase):
 
     def get_config(self):
         config = super().get_config()
-        # Note: The parent's get_config already serializes the initializers.
         config.update({
             'fuse': self._fuse,
             'qkvo_iq_conf': self._qkvo_iq_conf, 'kq_conf': self._qkvo_kq_conf,
