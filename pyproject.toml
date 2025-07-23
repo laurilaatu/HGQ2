@@ -5,11 +5,9 @@ requires = [ "setuptools>=67.8", "setuptools-scm>=8" ]
 
 [project]
 name = "hgq2"
-version = "0.1.1"
 description = "High Granularity Quantization 2"
 readme = "README.md"
 keywords = [ "hls4ml", "keras", "qkeras", "quantization" ]
-
 license = { text = "GNU Lesser General Public License v3 (LGPLv3)" }
 authors = [ { name = "Chang Sun", email = "chsun@cern.ch" } ]
 requires-python = ">=3.10"
@@ -23,6 +21,8 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
 ]
+dynamic = [ "version" ]
+
 dependencies = [ "keras>=3.10", "quantizers>=1.2.2", "tqdm" ]
 optional-dependencies.docs = [ "myst-parser", "pyparsing", "sphinx", "sphinx-rtd-theme" ]
 optional-dependencies.test = [
