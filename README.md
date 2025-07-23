@@ -18,10 +18,20 @@ This is a refactored version of the [HGQ](https://github.com/calad0i/HGQ) librar
 ## Installation
 
 ```bash
-pip install -e . # Install HGQ2 as local editable package. If you want to install it as a regular package, remove the `-e` flag.
+pip install HGQ2
 ```
 
-You will need to use `hls4ml` from this [fork](https://github.com/calad0i/hls4ml/tree/da4ml-v2) to generate the HLS projects. Minifloat quantization is not supported by the backend yet.
+If you are using `hls4ml`, please make sure it is at least version 1.2:
+
+```bash
+pip install hls4ml>=1.2.0
+```
+
+If you are using `da4ml`, please make sure it is at least version 0.3:
+
+```bash
+pip install da4ml>=0.3
+```
 
 ## Usage
 

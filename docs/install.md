@@ -26,7 +26,7 @@ cd HGQ2
 pip install -e .
 
 # For regular installation
-pip install 'git+https://github.com/calad0i/HGQ2'
+pip install HGQ2
 ```
 
 ## Troubleshooting
