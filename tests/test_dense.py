@@ -1,3 +1,4 @@
+import keras
 import pytest
 
 from hgq.layers import QBatchNormDense, QDense, QEinsumDense, QEinsumDenseBatchnorm
@@ -5,6 +6,7 @@ from tests.base import LayerTestBase
 
 
 class TestDense(LayerTestBase):
+    da4ml_not_supported = False
     layer_cls = QDense
 
     @pytest.fixture(params=[8])  # Test different output sizes
@@ -22,6 +24,14 @@ class TestDense(LayerTestBase):
     @pytest.fixture
     def layer_kwargs(self, units, activation):
         return {'units': units, 'activation': activation}
+
+    def test_da4ml_conversion(self, model: keras.Model, input_data, overflow_mode: str, temp_directory: str):
+        super()._test_da4ml_conversion(
+            model=model,
+            input_data=input_data,
+            overflow_mode=overflow_mode,
+            temp_directory=temp_directory,
+        )
 
 
 class TestBatchNormDense(TestDense):
@@ -62,6 +72,14 @@ class TestEinsumDense(LayerTestBase):
     @pytest.fixture(params=[True])
     def use_parallel_io(self, request) -> bool:
         return request.param
+
+    def test_da4ml_conversion(self, model: keras.Model, input_data, overflow_mode: str, temp_directory: str):
+        super()._test_da4ml_conversion(
+            model=model,
+            input_data=input_data,
+            overflow_mode=overflow_mode,
+            temp_directory=temp_directory,
+        )
 
 
 class TestEinsumDenseBatchnorm(TestEinsumDense):

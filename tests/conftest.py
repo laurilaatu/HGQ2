@@ -70,3 +70,12 @@ def temp_directory(request: pytest.FixtureRequest):
         test_dir = root / f'{cls_name}.{test_name}'
     test_dir.mkdir(exist_ok=True)
     return str(test_dir)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """whole test run finishes."""
+    root = Path(os.environ.get('HGQ2_TEST_DIR', '/tmp/hgq2_test'))
+    # Purge empty directories
+    for path in root.glob('*'):
+        if path.is_dir() and not any(path.iterdir()):
+            path.rmdir()

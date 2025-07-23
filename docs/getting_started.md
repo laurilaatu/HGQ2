@@ -109,6 +109,10 @@ hls_pred = hls_model.predict(x_test)
 print(f"{np.sum(keras_pred != hls_pred)} / {np.prod(keras_pred.shape)} value mismatches")
 ```
 
+```{note}
+For certain models (without resource multiplexing, general non-linear function (e.g., sigmoid or tanh), or variable-to-variable multiplicatin), you may need to use the `da4ml` backend instead of `hls4ml` for HDL or HLS code generation. Consult the [da4ml documentation](https://github.com/calad0i/da4ml) for more details.
+```
+
 ## Advanced Configuration
 
 ### Quantization Types

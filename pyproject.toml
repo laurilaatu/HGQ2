@@ -26,6 +26,7 @@ dynamic = [ "version" ]
 dependencies = [ "keras>=3.10", "quantizers>=1.2.2", "tqdm" ]
 optional-dependencies.docs = [ "myst-parser", "pyparsing", "sphinx", "sphinx-rtd-theme" ]
 optional-dependencies.test = [
+  "da4ml>=0.4",
   "hls4ml @ git+https://github.com/fastmachinelearning/hls4ml.git@main",
   "jax>=0.4.20",
   "jaxlib>=0.4.20",

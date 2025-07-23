@@ -10,15 +10,16 @@ Depending on the specific [application](https://arxiv.org/abs/2006.10159), HGQ c
 
 ## Can I use it?
 
-The primary usage for HGQ is to quantize your model for FPGA deployment. Currently the recommended way to use HGQ is to train your model with HGQ, and then convert the trained model to HLS C++ code with `hls4ml`. However, you can also use the quantized model for other purposes, such as deploying on other platforms, or even just for model compression.
+The primary usage for HGQ is to quantize your model for FPGA deployment. Currently the recommended way to use HGQ is to train your model with HGQ, and then convert the trained model to HLS C++ code with `hls4ml` or `da4ml` However, you can also use the quantized model for other purposes, such as deploying on other platforms, or even just for model compression.
 
 For the training part, you can use HGQ as a drop-in replacement for `Keras` layers. For the deployment part, the following conditions should be met:
 
-1. Your model is competible with `hls4ml` (i.e. it can be converted to HLS C++ code).
-2. You are using `Vitis` or `Vivado` (deprecated) as your FPGA backend.
+1. Your model is compatible with `hls4ml` or `da4ml` (i.e., no dynamic shapes, static dataflow, etc.)
+2. If using `hls4ml`: You are using `Vitis` or `Vivado` or `OneAPI` (preliminary support) as your FPGA backend.
    - other backend **MAY** work if you don't use heterogeneous activation quantization.
 3. Your model is representable in HGQ2 layers
    - Some layers in HGQ2 are not supported by `hls4ml` under certain configurations.
+   - `da4ml`'s layer support is more limited than `hls4ml`, but supports more fine-grained operations (e.g., take arbitrary elements from a tensor, free-rearranging, etc.)
 
 If you meet all the above conditions, you can probably use HGQ to quantize your model.
 
@@ -45,7 +46,9 @@ This is due to some hard-coded limitation in Vivado HLS, and there is no known w
 
 ## QKeras?
 
-Most `QKeras` models targeting `hls4ml` may be represented in HGQ2, but usually not vice versa. However, there are certain layers in `QKeras` that are not supported by HGQ2, such as the RNN family and hard activation layers.
+Most `QKeras` models targeting `hls4ml` may be represented in HGQ2, but usually not vice versa. However, there are certain layers in `QKeras` that are not supported by HGQ2, such as the RNN family and hard activation layers (though can be emulated with a properly set fixed point quantizer with `SAT` or `SAT_SYM`).
+
+HGQ2 comes with a preliminary `QKeras` compatibility layer in **alpha** quality and is not intended for production use. We have not decided whether to maintain those in the future, but they are available for testing and experimentation.
 
 ## Premission and License
 

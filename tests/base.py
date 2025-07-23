@@ -162,20 +162,17 @@ class LayerTestBase:
         model.compile(optimizer='adam', loss='mean_squared_error')
         original_output = ops.stop_gradient(model(input_data))
 
-        save_path = f'{temp_directory}/model.{format}'
+        save_path = f'{temp_directory}_model.{format}'
         model.save(save_path)
         loaded_model = keras.models.load_model(save_path, custom_objects=self.custom_objects)
         loaded_output = ops.stop_gradient(loaded_model(input_data))  # type: ignore
 
         np.testing.assert_array_equal(original_output, loaded_output)  # type: ignore
 
-        os.system(f"rm -rf '{temp_directory}'")
+        os.system(f"rm '{save_path}'")
 
-    def test_hls4ml_conversion(
-        self, model: keras.Model, input_data: np.ndarray, temp_directory: str, use_parallel_io: bool, q_type: str
-    ):
+    def test_hls4ml_conversion(self, model: keras.Model, input_data, temp_directory: str, use_parallel_io: bool, q_type: str):
         if self.hls4ml_not_supported:
-            os.system(f"rm -rf '{temp_directory}'")
             pytest.skip('No synth test')
         """Test hls4ml conversion and bit-exactness"""
 
@@ -183,7 +180,7 @@ class LayerTestBase:
 
         hls_model = convert_from_keras_model(
             model,
-            output_dir=temp_directory,
+            output_dir=f'{temp_directory}/hls4ml_prj',
             backend='Vitis',
             io_type='io_parallel' if use_parallel_io else 'io_stream',
             hls_config={'Model': {'Precision': 'ap_fixed<1,0>', 'ReuseFactor': 1, 'Strategy': 'distributed_arithmetic'}},
@@ -203,12 +200,47 @@ class LayerTestBase:
         hls_output: np.ndarray = hls_model.predict(input_data).reshape(keras_output.shape)  # type: ignore
         self.assert_equal(keras_output, hls_output)
 
-        os.system(f"rm -rf '{temp_directory}'")
+        os.system(f"rm -rf '{temp_directory}/hls4ml_prj'")
+
+    def _test_da4ml_conversion(self, model: keras.Model, input_data, overflow_mode: str, temp_directory: str):
+        if overflow_mode == 'SAT':
+            pytest.skip()
+
+        from da4ml.codegen import HLSModel, VerilogModel
+        from da4ml.converter.hgq2.parser import trace_model
+        from da4ml.trace import comb_trace
+
+        inp, out = trace_model(model)
+        inp, out = np.concatenate(inp, axis=0), np.concatenate(out, axis=0)  # type: ignore
+        comb = comb_trace(inp, out)
+        verilog_model = VerilogModel(comb, 'test', f'{temp_directory}/verilog_proj', 5)
+        hls_model = HLSModel(comb, 'test', f'{temp_directory}/hls_proj')
+        if all(qint.min == qint.max for qint in verilog_model._pipe.out_qint):  # type: ignore
+            return  # No need to synthesize as model is trivial (all outputs are constant)
+        verilog_model.compile(nproc=1, openmp=False)
+        hls_model.compile(openmp=False)
+        keras_output = model.predict(input_data, batch_size=5000)
+        if isinstance(keras_output, Sequence):
+            keras_output = tuple(_out.reshape(np.shape(_out)[0], -1) for _out in keras_output)
+        else:
+            keras_output = keras_output.reshape(np.shape(keras_output)[0], -1)
+        if isinstance(input_data, np.ndarray):
+            v_input_data = input_data.reshape(np.shape(input_data)[0], -1)
+        else:
+            v_input_data = np.concatenate([_inp.reshape(np.shape(_inp)[0], -1) for _inp in input_data], axis=0)
+        v_output = verilog_model.predict(v_input_data)
+        h_output = hls_model.predict(v_input_data)
+
+        np.testing.assert_array_equal(v_output, h_output)
+
+        self.assert_equal(keras_output, v_output)
+        os.system(f"rm -rf '{temp_directory}/verilog_proj'")
+        os.system(f"rm -rf '{temp_directory}/hls_proj'")
 
     def assert_equal(self, keras_output, hls_output):
         _assert_equal(keras_output, hls_output)
 
-    def test_training(self, model: keras.Model, input_data: np.ndarray, overflow_mode: str, *args, **kwargs):
+    def test_training(self, model: keras.Model, input_data, overflow_mode: str, *args, **kwargs):
         """Test basic training step"""
 
         model_wrap = keras.Sequential([model, keras.layers.Flatten(), keras.layers.Lambda(lambda x: ops.sum(x))])

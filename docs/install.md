@@ -39,10 +39,13 @@ pip install 'git+https://github.com/calad0i/HGQ2'
    print(keras.__version__)  # Should be 3.x
    ```
 
-2. **hls4ml Conversion Issues**: If you encounter errors during hls4ml conversion, make sure you're using the recommended fork:
+2. **hls4ml Conversion Issues**: HGQ2 is supported in hls4ml since v1.2.0. Ensure you have the correct version installed:
    ```bash
-   pip uninstall hls4ml  # Remove any existing installation
-   pip install git+https://github.com/calad0i/hls4ml.git@da4ml-v2
+   pip install hls4ml>=1.2.0
+   ```
+   or directly from the repository for the latest features:
+   ```bash
+   pip install 'git+https://github.com/fastmachinelearning/hls4ml.git'
    ```
 
 ### Getting Help

@@ -1,3 +1,5 @@
+from math import log2, prod
+
 import keras
 import numpy as np
 import pytest
@@ -55,8 +57,29 @@ class PoolingTestBase(LayerTestBase):
             q_type=q_type,
         )
 
+    def test_da4ml_conversion(self, model: keras.Model, input_data, overflow_mode: str, temp_directory: str):
+        layer = model.layers[-1]
+
+        if isinstance(layer, (QAveragePooling2D, QAveragePooling1D)):
+            if getattr(layer, 'padding', None) == 'same':
+                pytest.skip('non-pow-2 pool size at boundary')
+            if log2(prod(layer.pool_size)) % 1 != 0:
+                pytest.skip('non-pow-2 pool size')
+
+        super()._test_da4ml_conversion(
+            model=model,
+            input_data=input_data,
+            overflow_mode=overflow_mode,
+            temp_directory=temp_directory,
+        )
+
 
 class GlobalPoolingTestBase(PoolingTestBase):
+    @pytest.fixture
+    def input_shapes(self):
+        shape = (4, 8, 5)[: self.dim + 1]
+        return shape
+
     @pytest.fixture
     def layer_kwargs(self):
         return {'data_format': 'channels_last'}
