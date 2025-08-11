@@ -402,9 +402,9 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         return ebops
 
     @property
-    def ebops(self):
+    def ebops(self) -> int:
         if self._ebops is None:
-            return ops.cast(0, 'uint32')
+            return 0
         ebops = sum(
             (  # type: ignore
                 self._query_dense.ebops,
