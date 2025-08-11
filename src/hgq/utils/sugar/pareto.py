@@ -1,6 +1,7 @@
 import os
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import keras
 import numpy as np
@@ -14,7 +15,7 @@ class ParetoFront(Callback):
         metrics: list[str],
         sides: list[int],
         fname_format: str | None = None,
-        enable_if: Callable[[dict], bool] | None = None,
+        enable_if: Callable[[dict[str, Any]], bool] | None = None,
     ):
         if fname_format is None:
             fname_format = 'epoch={epoch}'
