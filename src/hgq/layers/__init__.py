@@ -4,6 +4,7 @@ from .batch_normalization import QBatchNormalization
 from .conv import QConv1D, QConv2D, QConv3D
 from .core import *
 from .einsum_dense_batchnorm import QEinsumDenseBatchnorm
+from .linformer_attention import QLinformerAttention
 from .multi_head_attention import QMultiHeadAttention
 from .ops import *
 from .pooling import *
@@ -67,6 +68,7 @@ __all__ = [
     'QMinimum',
     'QMultiply',
     'QSubtract',
+    'QLinformerAttention',
     'QMultiHeadAttention',
     'QBatchNormDense',
     'QDense',

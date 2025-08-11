@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from keras import ops
 
-from hgq.layers import QMultiHeadAttention
+from hgq.layers import QLinformerAttention, QMultiHeadAttention
 from hgq.quantizer.internal import FixedPointQuantizerKBI, FixedPointQuantizerKIF
 from tests.base import LayerTestBase
 
@@ -11,11 +11,11 @@ from tests.base import LayerTestBase
 class TestMultiHeadAttention(LayerTestBase):
     layer_cls = QMultiHeadAttention
 
-    @pytest.fixture(params=[1, 3])  # Test different head counts
+    @pytest.fixture(params=[1, 2])  # Test different head counts
     def num_heads(self, request):
         return request.param
 
-    @pytest.fixture(params=[12])  # Test different key dimensions
+    @pytest.fixture(params=[8])  # Test different key dimensions
     def key_dim(self, request):
         return request.param
 
@@ -86,3 +86,12 @@ class TestMultiHeadAttention(LayerTestBase):
     @pytest.fixture
     def input_data(self, input_shapes, N: int = 5000):
         return tuple(np.random.randn(N, *shape).astype(np.float32) * 3 for shape in input_shapes)
+
+
+class TestLinformerAttention(TestMultiHeadAttention):
+    layer_cls = QLinformerAttention
+
+    @pytest.fixture
+    def layer_kwargs(self, num_heads, key_dim, fuse, input_shapes):
+        lin_kv_proj_dim = [2 for _ in range(len(input_shapes[0]) - 1)]
+        return {'num_heads': num_heads, 'key_dim': key_dim, 'fuse': fuse, 'lin_kv_proj_dim': lin_kv_proj_dim}
