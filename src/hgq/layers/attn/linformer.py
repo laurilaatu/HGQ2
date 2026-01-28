@@ -21,6 +21,7 @@ class QLinformerAttention(QMultiHeadAttention):
         use_bias=True,
         output_shape=None,
         attention_axes=None,
+        activation="softmax",
         kernel_initializer='glorot_uniform',
         bias_initializer='zeros',
         kernel_regularizer=None,
@@ -47,6 +48,9 @@ class QLinformerAttention(QMultiHeadAttention):
     ):
         kwargs = gather_vars_to_kwargs('self|lin_kv_proj_dim')
         self._kv_proj_dim = (lin_kv_proj_dim,) if isinstance(lin_kv_proj_dim, int) else tuple(lin_kv_proj_dim)
+
+        kwargs['activation'] = activation
+
         super().__init__(**kwargs)
 
     def build(self, query_shape, value_shape, key_shape=None):
@@ -129,12 +133,15 @@ class QLinformerAttention(QMultiHeadAttention):
     def ebops(self) -> int:
         if self._ebops is None:
             return 0
+
+        intermediate_ops = self._softmax.ebops if self._softmax else 0
+
         ebops = sum(
             (  # type: ignore
                 self._query_dense.ebops,
                 self._key_dense.ebops,
                 self._value_dense.ebops,
-                self._softmax.ebops,
+                intermediate_ops,
                 self._output_dense.ebops,
                 self._lin_k_proj.ebops,
                 self._lin_v_proj.ebops,

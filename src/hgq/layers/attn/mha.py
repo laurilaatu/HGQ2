@@ -2,7 +2,7 @@ import math
 from collections.abc import Sized
 from typing import Literal
 
-from keras import ops
+from keras import ops, activations
 from keras.initializers import Constant
 from keras.layers import Dropout, MultiHeadAttention
 from keras.src.layers.attention.multi_head_attention import _build_attention_equation, _build_proj_equation
@@ -31,6 +31,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         use_bias=True,
         output_shape=None,
         attention_axes=None,
+        activation="softmax",
         kernel_initializer='glorot_uniform',
         bias_initializer='zeros',
         kernel_regularizer=None,
@@ -55,8 +56,9 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         parallelization_factor=-1,
         **kwargs,
     ):
-        kwargs = gather_vars_to_kwargs('self|.+q_conf')
+        kwargs = gather_vars_to_kwargs('self|activation|.+q_conf')
 
+        self.activation = activation
         self._qkvo_iq_conf = qkvo_iq_conf or QuantizerConfig(place='datalane')
         self._qkvo_kq_conf = qkvo_kq_conf or QuantizerConfig(place='weight')
         self._qkvo_bq_conf = qkvo_bq_conf or QuantizerConfig(place='bias')
@@ -72,6 +74,9 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         self._stable_softmax = kwargs.pop('stable_softmax')
         self._fuse = kwargs.pop('fuse', 'none').lower()
 
+        self._softmax = None
+        self._activation_layer = None
+
         super().__init__(**kwargs)
 
     def _get_common_kwargs_for_sublayer(self):
@@ -85,7 +90,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
                 'oq_conf': self._qkvo_oq_conf,
                 'enable_ebops': self.enable_ebops,
                 'beta0': self._beta0.clone(),
-                #'parallelization_factor': self.parallelization_factor,
+                'parallelization_factor': self.parallelization_factor,
             }
         )
         return common_kwargs
@@ -119,6 +124,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         #         f"must be equal, but are {query_shape[-1]}, {value_shape[-1]}. "
         #         "Received: query_shape={query_shape}, value_shape={value_shape}"
         #     )
+
 
         if value_shape[1:-1] != key_shape[1:-1]:
             raise ValueError(
@@ -296,6 +302,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         """
 
         # Copied and modified from keras MultiHeadAttention, substituted Softmax with QSoftmax.
+
         if self._attention_axes is None:
             self._attention_axes = tuple(range(1, rank - 2))
         else:
@@ -327,17 +334,52 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             input_scaler=_inverse_sqrt_key_dim,
             enable_ebops=self.enable_ebops,
         )
+
         self._dropout_layer = Dropout(
             rate=self._dropout,
             dtype=self.dtype_policy,
             seed=self.seed,
         )
-        self._inverse_sqrt_key_dim = 1.0
+
+        # Scaling factor init
+        self._inverse_sqrt_key_dim = 1.0 / math.sqrt(float(self._key_dim))
         # Build softmax and dropout layers if possible.
+
+        if self.activation == "softmax":
+            norm_axes = tuple(
+                range(
+                    attn_scores_rank - len(self._attention_axes),
+                    attn_scores_rank,
+                ),
+            )
+            self._softmax = QSoftmax(
+                enable_oq=True,
+                axis=norm_axes,
+                dtype=self.dtype_policy,
+                stable=self._stable_softmax,
+                iq_conf=self._softmax_iq_conf,
+                exp_iq_conf=self._softmax_exp_iq_conf,
+                exp_oq_conf=self._softmax_exp_oq_conf,
+                inv_iq_conf=self._softmax_inv_iq_conf,
+                inv_oq_conf=self._softmax_inv_oq_conf,
+                oq_conf=self._softmax_oq_conf,
+                allow_heterogeneous_table=self._softmax_allow_heterogeneous_table,
+                input_scaler=self._inverse_sqrt_key_dim,
+                enable_ebops=self.enable_ebops,
+            )
+            # Reset scaler to 1.0 because QSoftmax handles it
+            self._inverse_sqrt_key_dim = 1.0
+        else:
+            # For ReLU, we need the scalar multiplier in _compute_attention
+            self._activation_layer = activations.get(self.activation)
+            self._softmax = None
+            # Do NOT reset self._inverse_sqrt_key_dim here!
+
         if shapes is not None:
             q_shape, v_shape, _ = shapes
             attn_score_shape = (None, self._num_heads, *q_shape[1:-1], *v_shape[1:-1])
-            self._softmax.build(attn_score_shape)
+            if self._softmax:
+                self._softmax.build(attn_score_shape)
             self._dropout_layer.build(attn_score_shape)
 
     def compute_output_shape(self, query_shape, value_shape, key_shape=None):
@@ -347,6 +389,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         config = super().get_config()
         config.update(
             {
+                'activation': self.activation,
                 'qkvo_iq_conf': self._qkvo_iq_conf,
                 'qkvo_kq_conf': self._qkvo_kq_conf,
                 'qkvo_bq_conf': self._qkvo_bq_conf,
@@ -389,14 +432,25 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         #     V_shape = b, (1,) * len(n), h, dv
         #     attn_score_shape = b, self._num_heads, *(1,) * len(n) * 2
 
+
         bw_q = self._query_dense.oq.bits_(Q_shape)
         bw_k = self._key_dense.oq.bits_(K_shape)
-        bw_v = self._value_dense.oq.bits_(V_shape)
-        bw_attn = self._softmax.oq.bits_(attn_score_shape)
 
+        # Calculate Q*K cost
         ebops_qk = ops.einsum(self._dot_product_ebops_equation, bw_q, bw_k)
-        ebops_av = ops.einsum(self._combine_ebops_equation, bw_attn, bw_v)
-        ebops = ebops_qk + ebops_av  # type: ignore
+
+        # If softmax exists, calculate Attention * V cost
+        if self._softmax:
+            attn_score_shape = (1, self._num_heads, *query_shape[1:-1], *value_shape[1:-1])
+            bw_attn = self._softmax.oq.bits_(attn_score_shape)
+            bw_v = self._value_dense.oq.bits_(V_shape)
+
+            ebops_av = ops.einsum(self._combine_ebops_equation, bw_attn, bw_v)
+            ebops = ebops_qk + ebops_av  # type: ignore
+        else:
+            # If no softmax (ReLU/etc), omit the calculation involving bw_attn entirely
+            ebops = ebops_qk
+
         if self.parallelization_factor > 0:
             return ebops * self.parallelization_factor
         return ebops
@@ -405,12 +459,15 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
     def ebops(self) -> int:
         if self._ebops is None:
             return 0
+
+        intermediate_ops = self._softmax.ebops if self._softmax else 0
+
         ebops = sum(
             (  # type: ignore
                 self._query_dense.ebops,
                 self._key_dense.ebops,
                 self._value_dense.ebops,
-                self._softmax.ebops,
+                intermediate_ops,
                 self._output_dense.ebops,
                 ops.convert_to_tensor(self._ebops),
             )
@@ -478,7 +535,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         Parameters
         ----------
         query : tensor
-            Projected query tensor of shape `(B, T, N, key_dim)`.
+                Projected query tensor of shape `(B, T, N, key_dim)`.
         key : tensor
             Projected key tensor of shape `(B, S, N, key_dim)`.
         value : tensor
@@ -503,11 +560,19 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         # the Transformer attention head.
         query = ops.multiply(query, ops.cast(self._inverse_sqrt_key_dim, query.dtype))
 
-        # Take the dot product between "query" and "key" to get the raw
-        # attention scores.
+        # Dot Product
         attention_scores = ops.einsum(self._dot_product_equation, key, query)
 
-        attention_scores = self._masked_softmax(attention_scores, attention_mask)
+        if self._softmax:
+            # Standard Softmax path (Quantized)
+            attention_scores = self._softmax(attention_scores, mask=attention_mask)
+        else:
+            # ReLU/Activation path
+            if attention_mask is not None:
+                attention_scores = ops.add(attention_scores, attention_mask)
+
+            if self._activation_layer:
+                attention_scores = self._activation_layer(attention_scores)
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
