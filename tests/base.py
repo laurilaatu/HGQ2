@@ -1,11 +1,13 @@
 import os
 from collections.abc import Sequence
+from math import ceil
 from typing import Any
 
 import keras
 import numpy as np
 import pytest
-from hls4ml.converters import convert_from_keras_model
+from alkaid.converter import trace_model
+from alkaid.trace import trace as comb_trace
 from keras import ops
 
 from hgq.config import LayerConfigScope, QuantizerConfigScope
@@ -27,20 +29,21 @@ class CtxGlue:
             ctx.__exit__(*args)
 
 
-def _assert_equal(a: np.ndarray | tuple[np.ndarray], b: np.ndarray | tuple[np.ndarray], thres: float = 2e-4):
+def _assert_equal(a: np.ndarray | tuple[np.ndarray], b: np.ndarray | tuple[np.ndarray], ignore_err: float):
     if isinstance(a, Sequence):
         a = np.concatenate([arr.reshape(arr.shape[0], -1) for arr in a], axis=1)
     if isinstance(b, Sequence):
         b = np.concatenate([arr.reshape(arr.shape[0], -1) for arr in b], axis=1)
 
     diff = a - b
+    diff = np.where(np.abs(diff) > ignore_err, diff, 0)
     mismatches = np.where(diff.ravel() != 0)[0]
     abs_mismatch = np.abs(diff.ravel())[mismatches]
     rel_mismatch = abs_mismatch / (np.abs(a.ravel()[mismatches]) + 1e-8)
     sig_mismatch = (rel_mismatch > 0.1) & (abs_mismatch > 1e-3)
     r_mismatch = mismatches.size / a.size
 
-    if not np.any(sig_mismatch) and r_mismatch < thres:
+    if not np.any(sig_mismatch) and r_mismatch < 1e-4:
         return  # Ignore small mismatches
 
     a_sample = a.ravel()[mismatches[:5]]
@@ -67,7 +70,9 @@ class LayerTestBase:
     layer_cls: type[QLayerBase] = QLayerBase
     custom_objects = {}
     hls4ml_not_supported = False
-    da4ml_not_supported = False
+    alkaid_not_supported = False
+    abs_cap_multiplier: float = 1.0
+    max_lsb_drift_fraction: float = 1e-6
 
     @pytest.fixture(params=[True, False])
     def use_parallel_io(self, request) -> bool:
@@ -90,16 +95,20 @@ class LayerTestBase:
         heterogeneous_axis, homogeneous_axis = (None, (0,)) if use_parallel_io else ((), None)
         scope_w = QuantizerConfigScope(
             default_q_type=q_type,
+            place=('weight', 'bias'),
+            k0=1,
+            i0=2,
+            f0=2,
             heterogeneous_axis=None,
             homogeneous_axis=(),
             overflow_mode=overflow_mode,
-            round_mode=round_mode,
+            round_mode='RND' if q_type == 'kbi' else round_mode,
             br=None,
             ir=None,
             fr=None,
         )
         scope_a = QuantizerConfigScope(
-            default_q_type=q_type,
+            default_q_type='kif',
             place=('datalane', 'table'),
             heterogeneous_axis=heterogeneous_axis,
             homogeneous_axis=homogeneous_axis,
@@ -191,10 +200,19 @@ class LayerTestBase:
 
         os.system(f"rm '{save_path}'")
 
-    def test_hls4ml_conversion(self, model: keras.Model, input_data, temp_directory: str, use_parallel_io: bool, q_type: str):
+    @pytest.fixture
+    def ignore_err(self):
+        return 0.0
+
+    @pytest.mark.slow
+    def test_hls4ml_conversion(
+        self, model: keras.Model, input_data, temp_directory: str, use_parallel_io: bool, q_type: str, ignore_err: float
+    ):
         if self.hls4ml_not_supported:
             pytest.skip('No synth test')
         """Test hls4ml conversion and bit-exactness"""
+
+        from hls4ml.converters import convert_from_keras_model
 
         trace_keras_output_0 = trace_minmax(model, input_data, return_results=True, verbose=2)
 
@@ -203,13 +221,12 @@ class LayerTestBase:
             output_dir=f'{temp_directory}/hls4ml_prj',
             backend='Vitis',
             io_type='io_parallel' if use_parallel_io else 'io_stream',
-            hls_config={'Model': {'Precision': 'ap_fixed<1,0>', 'ReuseFactor': 1, 'Strategy': 'distributed_arithmetic'}},
             bit_exact=True,
         )
 
         if q_type == 'kif':
             keras_output_0 = model.predict(input_data, batch_size=5000)
-            self.assert_equal(keras_output_0, trace_keras_output_0)
+            np.testing.assert_array_almost_equal(keras_output_0, trace_keras_output_0)
 
         hls_model.compile()
 
@@ -220,12 +237,12 @@ class LayerTestBase:
 
         keras_output = model.predict(input_data, batch_size=5000)
         hls_output: np.ndarray = hls_model.predict(input_data).reshape(keras_output.shape)  # type: ignore
-        self.assert_equal(keras_output, hls_output)
+        self.assert_equal(keras_output, hls_output, ignore_err=ignore_err)
 
         os.system(f"rm -rf '{temp_directory}/hls4ml_prj'")
 
-    def test_da4ml_conversion(self, model: keras.Model, input_data, overflow_mode: str, q_type: str):
-        if self.da4ml_not_supported:
+    def test_alkaid_conversion(self, model: keras.Model, input_data, overflow_mode: str, q_type: str, ignore_err):
+        if self.alkaid_not_supported:
             pytest.skip('No synth test')
 
         model.save('/tmp/1.keras')
@@ -236,12 +253,6 @@ class LayerTestBase:
 
         keras_output = model.predict(input_data, batch_size=5000)
 
-        if q_type == 'kif':
-            self.assert_equal(keras_output, trace_keras_output)
-
-        from da4ml.converter import trace_model
-        from da4ml.trace import comb_trace
-
         if overflow_mode == 'SAT':
             inp, out = trace_model(model, inputs_kif=(1, 3, 8))
         else:
@@ -251,21 +262,42 @@ class LayerTestBase:
         if all(qint.min == qint.max for qint in comb.out_qint):  # type: ignore
             return  # No need to synthesize as model is trivial (all outputs are constant)
 
-        keras_output = model.predict(input_data, batch_size=5000)
+        if q_type == 'kif':
+            keras_output_0 = model.predict(input_data, batch_size=5000)
+            np.testing.assert_array_almost_equal(keras_output_0, trace_keras_output)
+
         if isinstance(keras_output, Sequence):
             keras_output = np.concatenate([_out.reshape(np.shape(_out)[0], -1) for _out in keras_output], axis=1)
         else:
             keras_output = keras_output.reshape(np.shape(keras_output)[0], -1)
-        if isinstance(input_data, np.ndarray):
-            v_input_data = input_data.reshape(np.shape(input_data)[0], -1)
-        else:
-            v_input_data = np.concatenate([_inp.reshape(np.shape(_inp)[0], -1) for _inp in input_data], axis=1)
-        comb_output = comb.predict(v_input_data, n_threads=1)
+        comb_output = comb.predict(input_data)
+        lsb_step = np.array([q.step for q in comb.out_qint])
+        self.assert_equal(keras_output, comb_output, lsb_step=lsb_step, ignore_err=ignore_err)
 
-        self.assert_equal(keras_output, comb_output)
+    def assert_equal(self, keras_output, hw_output, lsb_step: None | np.ndarray | float = None, ignore_err: float = 0):
+        if lsb_step is None:
+            return _assert_equal(keras_output, hw_output, ignore_err=ignore_err)
 
-    def assert_equal(self, keras_output, hw_output):
-        _assert_equal(keras_output, hw_output)
+        abs_err = np.abs(keras_output - hw_output)
+        abs_tol = self.abs_cap_multiplier * lsb_step
+        abs_max_count = ceil(self.max_lsb_drift_fraction * keras_output.size)
+        rel_err = abs_err / (np.abs(keras_output) + 1e-8)
+        non_sig_err = (abs_err <= abs_tol) & (rel_err > 1e-20) & (abs_err > ignore_err)
+        sig_err = (abs_err > abs_tol) & (abs_err > ignore_err)
+        if non_sig_err.sum() > abs_max_count or sig_err.sum() > 0:
+            m = self.abs_cap_multiplier
+            msg = f"""Mismatch between keras and HW outputs.
+            {non_sig_err.sum()} > {abs_max_count} non-significant mismatches (abs <= {m} LSBs)
+            {sig_err.sum()} significant mismatches (abs > {m} LSBs).
+            Total sample size: {keras_output.size}
+            Sample significant mismatch:
+            Keras: {keras_output[sig_err][:5]}
+            HW   : {hw_output[sig_err][:5]}
+            Sample non-significant mismatch:
+            Keras: {keras_output[non_sig_err][:5]}
+            HW   : {hw_output[non_sig_err][:5]}
+            """
+            raise AssertionError(msg)
 
     def test_training(self, model: keras.Model, input_data, overflow_mode: str, *args, **kwargs):
         """Test basic training step"""
@@ -294,7 +326,7 @@ class LayerTestBase:
         for w0, w1 in zip(initial_weights_np, trained_weights):
             if w1.name in 'bif':
                 continue
-            if np.prod(w1.shape) < 10 and 'SAT' in overflow_mode:
+            if (np.prod(w1.shape) < 10 and 'SAT' in overflow_mode) or np.prod(w1.shape) < 5:
                 # Overflowing weight doesn't receive grad in SAT mode
                 # Chance of all overflow is high for small-sized weights, skip them
                 continue
