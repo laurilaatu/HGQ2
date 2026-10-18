@@ -34,10 +34,10 @@ def symbolic_extract_patches_3d(
     out_index: np.ndarray = ops.convert_to_numpy(out_tensor).round().astype(np.int32)  # type: ignore
     mask = out_index == 0
     out_index = np.where(mask, 0, -out_index - 1)
-    images = images.ravel()[out_index]
+    images = images.ravel()[out_index]  # type: ignore
 
     if isinstance(images, FixedVariableArray):
-        _vars = images._vars
+        _vars = np.asarray(images)
         _vars = np.where(mask, pad_value, _vars)
         images = FixedVariableArray(_vars, images.solver_options)  # type: ignore
     else:
@@ -118,9 +118,6 @@ class ReplayQConv(ReplayOperationBase):
         dilation_rate = layer.dilation_rate
         groups = layer.groups
 
-        if layer.data_format == 'channels_first':
-            inputs = np.moveaxis(inputs, 0, -1)  # type: ignore
-
         x = symbolic_extract_patches(
             inputs,
             size=layer.kernel_size,
@@ -129,6 +126,9 @@ class ReplayQConv(ReplayOperationBase):
             padding=padding,
             data_format=layer.data_format,
         )
+
+        if layer.data_format == 'channels_first':
+            inputs = np.moveaxis(inputs, 0, -1)  # type: ignore
 
         ch_out = qkernel.shape[-1]
 

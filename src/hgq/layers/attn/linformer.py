@@ -29,7 +29,7 @@ class QLinformerAttention(QMultiHeadAttention):
         kernel_constraint=None,
         bias_constraint=None,
         seed=None,
-        fuse: Literal['none', 'qkv', 'kv'] = 'none',
+        fuse: Literal['none'] = 'none',
         qkvo_iq_conf: QuantizerConfig | None = None,
         qkvo_kq_conf: QuantizerConfig | None = None,
         qkvo_bq_conf: QuantizerConfig | None = None,
@@ -43,23 +43,34 @@ class QLinformerAttention(QMultiHeadAttention):
         stable_softmax=True,
         softmax_allow_heterogeneous_table: bool = False,
         parallelization_factor=-1,
+        share_kv_proj=False,
         **kwargs,
     ):
-        kwargs = gather_vars_to_kwargs('self|lin_kv_proj_dim')
+        if fuse != 'none':
+            raise ValueError(f'Only fuse="none" can be used for QLinformerAttention, but got fuse="{fuse}".')
+        kwargs = gather_vars_to_kwargs('self|lin_kv_proj_dim|share_kv_proj')
         self._kv_proj_dim = (lin_kv_proj_dim,) if isinstance(lin_kv_proj_dim, int) else tuple(lin_kv_proj_dim)
+        self.share_kv_proj = share_kv_proj
         super().__init__(**kwargs)
 
-    def build(self, query_shape, value_shape, key_shape=None):
+    def build(self, query_shape, value_shape=None, key_shape=None):
+        value_shape = value_shape or query_shape
         key_shape = key_shape or value_shape
         key_rank = len(key_shape)
         value_rank = len(value_shape)
         assert key_rank == value_rank, (
             f'Key and value must have the same rank, but got key shape {key_shape} and value shape {value_shape}.'
         )
-        if self.attention_axes is not None:
-            attn_axes = tuple(self.attention_axes)
-        else:
-            attn_axes = tuple(range(1, value_rank - 1))
+        if self.share_kv_proj:
+            assert key_shape == value_shape, (
+                f'When share_kv_proj is True, k and v must have the same shape. Got key ({key_shape}) and value ({value_shape}).'
+            )
+
+        if self._attention_axes is None:
+            self._attention_axes = tuple(range(1, value_rank - 1))
+        elif not isinstance(self._attention_axes, tuple):
+            self._attention_axes = tuple(self._attention_axes)
+        attn_axes = self._attention_axes
 
         assert len(attn_axes) == len(self._kv_proj_dim), (
             f'Attention axes are {attn_axes}, but kv_proj_dim is {self._kv_proj_dim}. They must match in length.'
@@ -86,20 +97,22 @@ class QLinformerAttention(QMultiHeadAttention):
         self._lin_k_proj = QEinsumDense(
             eq_lin_kv_proj, self._key_shape_proj[1:], bias_axes=None, **self._get_common_kwargs_for_sublayer()
         )
-
-        self._lin_v_proj = QEinsumDense(
-            eq_lin_kv_proj, self._value_shape_proj[1:], bias_axes=None, **self._get_common_kwargs_for_sublayer()
-        )
-
         self._lin_k_proj.build(key_shape)
-        self._lin_v_proj.build(value_shape)
+
+        if not self.share_kv_proj:
+            self._lin_v_proj = QEinsumDense(
+                eq_lin_kv_proj, self._value_shape_proj[1:], bias_axes=None, **self._get_common_kwargs_for_sublayer()
+            )
+            self._lin_v_proj.build(value_shape)
+        else:
+            self._lin_v_proj = self._lin_k_proj
 
         super().build(query_shape, self._value_shape_proj, key_shape=self._key_shape_proj)
 
     def call(
         self,
         query,
-        value,
+        value=None,
         key=None,
         query_mask=None,
         value_mask=None,
@@ -110,6 +123,7 @@ class QLinformerAttention(QMultiHeadAttention):
         use_causal_mask=False,
     ):
         assert use_causal_mask is False, 'Causal mask is not supported in QLinformerAttention.'
+        value = value if value is not None else query
         key = key if key is not None else value
         key = self._lin_k_proj(key, training=training)
         value = self._lin_v_proj(value, training=training)
@@ -126,27 +140,23 @@ class QLinformerAttention(QMultiHeadAttention):
         )
 
     @property
-    def ebops(self) -> int:
+    def ebops(self):
         if self._ebops is None:
-            return 0
+            return ops.cast(0, 'uint32')
         ebops = sum(
             (  # type: ignore
-                self._query_dense.ebops,
-                self._key_dense.ebops,
-                self._value_dense.ebops,
-                self._softmax.ebops,
-                self._output_dense.ebops,
                 self._lin_k_proj.ebops,
                 self._lin_v_proj.ebops,
-                ops.convert_to_tensor(self._ebops),
+                ops.convert_to_tensor(self._ebops),  # type: ignore
             )
         )
-        return round(ops.convert_to_numpy(ebops).item())  # type: ignore
+        return ebops  # type: ignore
 
-    def _compute_ebops(self, query_shape, value_shape, key_shape=None):
+    def _compute_ebops(self, query_shape, value_shape=None, key_shape=None):
         return super()._compute_ebops(query_shape, self._value_shape_proj, key_shape=self._key_shape_proj)
 
     def get_config(self):
         config = super().get_config()
         config['lin_kv_proj_dim'] = self._kv_proj_dim
+        config['share_kv_proj'] = self.share_kv_proj
         return config

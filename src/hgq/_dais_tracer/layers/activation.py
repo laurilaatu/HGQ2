@@ -31,15 +31,15 @@ class ReplayReLU(ReplayOperationBase):
             return relu(inputs)
 
         pos_part = inputs if maxv is None else np.minimum(inputs, maxv)  # type: ignore
-        pos_part = pos_part._vars.ravel()
+        pos_part = pos_part.ravel()
 
         if th != 0:
-            z_cond = (inputs - (th + 2.0 ** (-inputs.kif[2] - 1)))._vars.ravel()
+            z_cond = (inputs - (th + 2.0 ** (-inputs.kif[2] - 1))).ravel()
         else:
-            z_cond = inputs._vars.ravel()
+            z_cond = inputs.ravel()
 
-        neg_part = ((inputs[None] - th) * neg)._vars.ravel()
-        out = np.array([c.msb_mux(n, p) if c.low < 0 else p for c, n, p in zip(z_cond, neg_part, pos_part)])
+        neg_part = ((inputs[None] - th) * neg).ravel()
+        out = np.array([c.msb_mux(n, p) if c.low < 0 else p for c, n, p in zip(z_cond, neg_part, pos_part)])  # type: ignore
 
         return FixedVariableArray(out.reshape(inputs.shape), inputs.solver_options)
 
@@ -66,18 +66,21 @@ class ReplayQSoftmax(ReplayOperationBase):
 
     def call(self, inputs: FixedVariableArray, mask: None | FixedVariableArray = None) -> FixedVariableArray:
         op: QSoftmax = self.op
-        inputs = inputs[None]
+        inputs = inputs[None]  # type: ignore
 
         if op.stable:
+            if mask is not None:
+                low = np.min(inputs.lhs[0]) - 1
+                inputs = np.where(mask, inputs, low)  # type: ignore
             inputs = np.amax(inputs, axis=op.axes, keepdims=True) - inputs  # type: ignore
 
-        exp_inp = ReplayQFunctionLUT(op.exp_table)(inputs[0])[0]
+        exp_inp = ReplayQFunctionLUT(op.exp_table)(inputs[0])['final'][0]
 
         if mask is not None:
-            exp_inp = mask[0] * exp_inp
+            exp_inp = mask * exp_inp
 
         sums = np.sum(exp_inp[None], axis=op.axes, keepdims=True)[0]  # type: ignore
-        divisor = ReplayQFunctionLUT(op.inv_table)(sums)[0]
+        divisor = ReplayQFunctionLUT(op.inv_table)(sums)['final'][0]
 
         return exp_inp * divisor
 

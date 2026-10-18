@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from keras import ops
 
-from hgq.layers import QLinformerAttention, QMultiHeadAttention
+from hgq.layers.attn import QLinformerAttention, QMultiHeadAttention, QSALTAttention
 from hgq.quantizer.internal import FixedPointQuantizerKBI, FixedPointQuantizerKIF
 
 from .base import LayerTestBase
@@ -20,9 +20,9 @@ class TestMultiHeadAttention(LayerTestBase):
     def key_dim(self, request):
         return request.param
 
-    @pytest.fixture(params=['none'])  # Test different fusion modes
+    @pytest.fixture(params=['qkv', 'kv', 'none'])  # Test different fusion modes
     def fuse(self, request):
-        # qkv and kv fused projection not implemented in hls4ml yet
+        # qkv and kv fused projection only makes difference in da4ml
         return request.param
 
     @pytest.fixture
@@ -31,7 +31,7 @@ class TestMultiHeadAttention(LayerTestBase):
         if fuse == 'none':
             return (2, 4, 8), (2, 4, 9), (2, 4, 10)
         elif fuse == 'qkv':
-            return (2, 4, 8)
+            return ((9, 8),)
         elif fuse == 'kv':
             return (2, 4, 3), (2, 4, 5)
         raise ValueError(f'Invalid fusion mode: {fuse}')
@@ -49,13 +49,19 @@ class TestMultiHeadAttention(LayerTestBase):
         return request.param
 
     @pytest.fixture
-    def model(self, layer, input_shapes, use_parallel_io):
+    def call_kwargs(self, input_shapes):
+        if len(input_shapes) == 1:
+            return {'use_causal_mask': True}
+        return {}
+
+    @pytest.fixture
+    def model(self, layer, input_shapes, call_kwargs, use_parallel_io):
         """Create test model with the layer"""
         if isinstance(input_shapes[0], int):
             input_shapes = (input_shapes,)
         inputs = [keras.layers.Input(shape=shape) for shape in input_shapes]
 
-        outputs = layer(*inputs)  # Differs to other layers, MHA takes 2-3 inputs (q, v, k=v) not in a list
+        outputs = layer(*inputs, **call_kwargs)
         model = keras.Model(inputs, outputs)
 
         self.perturbe_bw(use_parallel_io, model)
@@ -88,11 +94,18 @@ class TestMultiHeadAttention(LayerTestBase):
     def input_data(self, input_shapes, N: int = 5000):
         eps = 2.0**-8
         return tuple(
-            np.round((np.random.randn(N, *shape).astype(np.float32) * 3).clip(-8, 8 - eps) * 256) / 256 for shape in input_shapes
+            np.round((np.random.randn(N, *shape).astype(np.float32).clip(-1, 1 - eps)) * 256) / 256 for shape in input_shapes
         )
 
-    def assert_equal(self, keras_output, hls_output):
-        return np.testing.assert_allclose(keras_output, hls_output, atol=1e-6)
+    def assert_equal(self, keras_output, hw_output):
+        return np.testing.assert_allclose(keras_output, hw_output, atol=1e-6)
+
+    def test_hls4ml_conversion(  # type: ignore
+        self, model: keras.Model, input_data, temp_directory: str, use_parallel_io: bool, q_type: str, call_kwargs
+    ):
+        if call_kwargs.get('use_causal_mask', False):
+            pytest.skip('Causal mask not supported in hls4ml conversion')
+        super().test_hls4ml_conversion(model, input_data, temp_directory, use_parallel_io, q_type)
 
 
 class TestLinformerAttention(TestMultiHeadAttention):
@@ -102,3 +115,46 @@ class TestLinformerAttention(TestMultiHeadAttention):
     def layer_kwargs(self, num_heads, key_dim, fuse, input_shapes):
         lin_kv_proj_dim = [2 for _ in range(len(input_shapes[0]) - 1)]
         return {'num_heads': num_heads, 'key_dim': key_dim, 'fuse': fuse, 'lin_kv_proj_dim': lin_kv_proj_dim}
+
+    @pytest.fixture(params=['none'])  # Test different fusion modes
+    def fuse(self, request):
+        return request.param
+
+    @pytest.fixture
+    def call_kwargs(self, input_shapes):
+        return {}
+
+
+class TestSALTAttention(TestMultiHeadAttention):
+    layer_cls = QSALTAttention
+    hls4ml_not_supported = True
+
+    @pytest.fixture(params=['none'])  # Test different fusion modes
+    def fuse(self, request):
+        return request.param
+
+    @pytest.fixture(params=[(True, True, True), (True, False, False)])
+    def cluster_and_share(self, request):
+        return request.param
+
+    @pytest.fixture
+    def input_shapes(self):
+        return ((9, 12),)
+
+    @pytest.fixture
+    def layer_kwargs(self, num_heads, key_dim, fuse, cluster_and_share):
+        cluster_k_proj, cluster_v_proj, share_kv_proj = cluster_and_share
+        lin_kv_proj_dim = 4
+        return {
+            'num_heads': num_heads,
+            'key_dim': key_dim,
+            'fuse': fuse,
+            'cluster_k_proj': cluster_k_proj,
+            'cluster_v_proj': cluster_v_proj,
+            'share_kv_proj': share_kv_proj,
+            'lin_kv_proj_dim': lin_kv_proj_dim,
+        }
+
+    @pytest.fixture
+    def call_kwargs(self, input_shapes):
+        return {}

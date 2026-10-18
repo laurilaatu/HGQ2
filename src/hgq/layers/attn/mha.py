@@ -62,7 +62,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         self._qkvo_bq_conf = qkvo_bq_conf or QuantizerConfig(place='bias')
         self._qkvo_oq_conf = qkvo_oq_conf or QuantizerConfig(place='datalane')
         self._softmax_iq_conf = softmax_iq_conf or QuantizerConfig(place='datalane')
-        self._softmax_exp_iq_conf = softmax_exp_iq_conf or QuantizerConfig(place='datalane')
+        self._softmax_exp_iq_conf = softmax_exp_iq_conf or QuantizerConfig(place='datalane', overflow_mode='SAT')
         self._softmax_exp_oq_conf = softmax_exp_oq_conf or QuantizerConfig(place='table')
         self._softmax_inv_iq_conf = softmax_inv_iq_conf or QuantizerConfig(place='datalane')
         self._softmax_inv_oq_conf = softmax_inv_oq_conf or QuantizerConfig(place='table')
@@ -71,6 +71,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         self.parallelization_factor = kwargs.pop('parallelization_factor')
         self._stable_softmax = kwargs.pop('stable_softmax')
         self._fuse = kwargs.pop('fuse', 'none').lower()
+        self._inverse_sqrt_key_dim = 1.0 / math.sqrt(float(key_dim))
 
         super().__init__(**kwargs)
 
@@ -90,10 +91,14 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         )
         return common_kwargs
 
+    def compute_output_spec(self, query, value=None, key=None, *args, **kwargs):
+        value = query if value is None else value
+        return super().compute_output_spec(*args, query=query, value=value, key=key, **kwargs)
+
     def build(
         self,
         query_shape,
-        value_shape,
+        value_shape=None,
         key_shape=None,
     ):
         """Builds layers and variables.
@@ -102,7 +107,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         ----------
         query_shape : tuple
             Shape of the `query` tensor.
-        value_shape : tuple
+        value_shape : tuple, optional
             Shape of the `value` tensor.
         key_shape : tuple, optional
             Shape of the `key` tensor.
@@ -111,14 +116,19 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         # Copied and modified from keras MultiHeadAttention, substituted
         # EinsumDense with QEinsumDense and added sequence length (shape) to its
         # output shape when initializing, if known.
+        value_shape = query_shape if value_shape is None else value_shape
         key_shape = value_shape if key_shape is None else key_shape
 
-        # if query_shape[-1] != value_shape[-1]:
-        #     raise ValueError(
-        #         "The last dimension of `query_shape` and `value_shape` "
-        #         f"must be equal, but are {query_shape[-1]}, {value_shape[-1]}. "
-        #         "Received: query_shape={query_shape}, value_shape={value_shape}"
-        #     )
+        if self._fuse == 'qkv':
+            assert query_shape == value_shape == key_shape, (
+                'For fuse=qkv, query, key and value must have the same shape',
+                f'but got query_shape={query_shape}, value_shape={value_shape} and key_shape={key_shape}.',
+            )
+        if self._fuse == 'kv':
+            assert value_shape == key_shape, (
+                'For fuse=kv, key and value must have the same shape',
+                f'but got value_shape={value_shape} and key_shape={key_shape}.',
+            )
 
         if value_shape[1:-1] != key_shape[1:-1]:
             raise ValueError(
@@ -189,15 +199,15 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         )
         self._value_dense.build(value_shape)
 
-        if self._fuse == 'qkv':
+        if self._fuse == 'qkv' and self.enable_iq:
             self._query_dense._iq = self._value_dense._iq
-        if self._fuse in ('qkv', 'kv'):
+            self._query_dense._enable_iq = True
+        if self._fuse in ('qkv', 'kv') and self.enable_iq:
             self._key_dense._iq = self._value_dense._iq
+            self._key_dense._enable_iq = True
 
         self._query_dense.build(query_shape)
-        self._query_dense._enable_iq = True
         self._key_dense.build(key_shape)
-        self._key_dense._enable_iq = True
 
         # Builds the attention computations for multi-head dot product
         # attention.  These computations could be wrapped into the keras
@@ -298,7 +308,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         # Copied and modified from keras MultiHeadAttention, substituted Softmax with QSoftmax.
         if self._attention_axes is None:
             self._attention_axes = tuple(range(1, rank - 2))
-        else:
+        elif not isinstance(self._attention_axes, tuple):
             self._attention_axes = tuple(self._attention_axes)
         (
             self._dot_product_equation,
@@ -311,7 +321,6 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
                 attn_scores_rank,
             ),
         )
-        _inverse_sqrt_key_dim = 1.0 / math.sqrt(float(self._key_dim))
         self._softmax = QSoftmax(
             enable_oq=True,
             axis=norm_axes,
@@ -324,7 +333,7 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
             inv_oq_conf=self._softmax_inv_oq_conf,
             oq_conf=self._softmax_oq_conf,
             allow_heterogeneous_table=self._softmax_allow_heterogeneous_table,
-            input_scaler=_inverse_sqrt_key_dim,
+            input_scaler=self._inverse_sqrt_key_dim,
             enable_ebops=self.enable_ebops,
         )
         self._dropout_layer = Dropout(
@@ -371,10 +380,12 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         for sublayer in self._flatten_layers():
             assert sublayer.built, f'Sublayer {sublayer.name} is not built for {self.name}'
 
-    def _compute_ebops(self, query_shape, value_shape, key_shape=None):
+    def _compute_ebops(self, query_shape, value_shape=None, key_shape=None):
         Q_shape = (1,) + self._query_dense.full_output_shape[1:]
         K_shape = (1,) + self._key_dense.full_output_shape[1:]
         V_shape = (1,) + self._value_dense.full_output_shape[1:]
+
+        value_shape = query_shape if value_shape is None else value_shape
         attn_score_shape = (1, self._num_heads, *query_shape[1:-1], *value_shape[1:-1])
 
         # PF not supported for MHA for now.
@@ -402,9 +413,9 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
         return ebops
 
     @property
-    def ebops(self) -> int:
+    def ebops(self):
         if self._ebops is None:
-            return 0
+            return ops.cast(0, 'uint32')
         ebops = sum(
             (  # type: ignore
                 self._query_dense.ebops,
@@ -412,15 +423,15 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
                 self._value_dense.ebops,
                 self._softmax.ebops,
                 self._output_dense.ebops,
-                ops.convert_to_tensor(self._ebops),
+                ops.convert_to_tensor(self._ebops),  # type: ignore
             )
         )
-        return round(ops.convert_to_numpy(ebops).item())  # type: ignore
+        return ebops  # type: ignore
 
     def call(
         self,
         query,
-        value,
+        value=None,
         key=None,
         query_mask=None,
         value_mask=None,
@@ -432,6 +443,8 @@ class QMultiHeadAttention(MultiHeadAttention, QLayerBase):
     ):
         # Adapted from _compute_attention in keras 3.5.0
 
+        if value is None:
+            value = query
         if key is None:
             key = value
 
